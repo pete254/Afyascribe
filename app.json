@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Afyasribe",
+    "slug": "Afyasribe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for medical voice transcription",
+        "NSSpeechRecognitionUsageDescription": "This app needs speech recognition for medical note transcription"
+      },
+      "bundleIdentifier": "com.pete-dev.MedicalTranscriptionApp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.pete_dev.MedicalTranscriptionApp"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Medical Transcription to access your microphone for voice recording."
+        }
+      ],
+      "expo-audio",
+      "expo-asset"
+    ],
+    "extra": {
+      "ASSEMBLY_AI_KEY": "4b237edb6123440ebfc448933fbf6c44",
+      "eas": {
+        "projectId": "98e4558f-9771-421a-9461-092deadc3a4e"
+      }
+    }
+  }
+}
