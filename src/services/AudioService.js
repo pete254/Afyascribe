@@ -11,11 +11,11 @@ class AudioService {
     this.durationInterval = null;
     this.currentTranscript = '';
     
-    // Assembly AI Configuration for REST API
-    this.API_KEY = Constants.expoConfig?.extra?.ASSEMBLY_AI_KEY || process.env.EXPO_PUBLIC_ASSEMBLYAI_API_KEY;
+    // OpenAI Whisper Configuration
+    this.API_KEY = Constants.expoConfig?.extra?.OPENAI_API_KEY || process.env.EXPO_PUBLIC_OPENAI_API_KEY;
     
     if (!this.API_KEY) {
-      console.warn('Assembly AI API key not found. Please set EXPO_PUBLIC_ASSEMBLYAI_API_KEY in your environment.');
+      console.warn('OpenAI API key not found. Please set EXPO_PUBLIC_OPENAI_API_KEY in your environment.');
     }
   }
 
@@ -147,7 +147,7 @@ class AudioService {
           // Start transcription process
           try {
             this.isTranscribing = true;
-            console.log('Starting transcription...');
+            console.log('Starting Whisper transcription...');
             
             const transcriptionResult = await this.transcribeAudio(uri);
             
@@ -193,10 +193,10 @@ class AudioService {
 
   async transcribeAudio(audioUri) {
     try {
-      console.log('Starting REST API transcription...');
+      console.log('Starting Whisper API transcription...');
 
       if (!this.API_KEY) {
-        throw new Error('Assembly AI API key not configured');
+        throw new Error('OpenAI API key not configured');
       }
 
       // Check if audio file exists
@@ -207,140 +207,60 @@ class AudioService {
 
       console.log('Audio file info:', audioInfo);
 
-      // Step 1: Upload audio file
-      console.log('Uploading audio file...');
-      const uploadUrl = await this.uploadAudioFile(audioUri);
+      // Create FormData for Whisper API
+      const formData = new FormData();
       
-      // Step 2: Submit transcription request
-      console.log('Submitting transcription request...');
-      const transcriptId = await this.submitTranscriptionRequest(uploadUrl);
+      // Append the audio file
+      formData.append('file', {
+        uri: audioUri,
+        type: 'audio/m4a',
+        name: 'recording.m4a',
+      });
       
-      // Step 3: Poll for results
-      console.log('Polling for transcription results...');
-      const transcription = await this.pollForTranscription(transcriptId);
+      // Whisper model (only whisper-1 is available)
+      formData.append('model', 'whisper-1');
       
+      // Language (optional, but helps accuracy)
+      formData.append('language', 'en');
+      
+      // Prompt to guide transcription (helps with medical terminology)
+      formData.append('prompt', 'Medical consultation with patient. Include medical terminology, SOAP notes format, symptoms, diagnosis, assessment, and treatment plan details.');
+      
+      // Response format (text is default, but you can use json, srt, verbose_json, or vtt)
+      formData.append('response_format', 'text');
+
+      console.log('Sending request to Whisper API...');
+
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.API_KEY}`,
+          // Note: Don't set Content-Type header - FormData sets it automatically with boundary
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Whisper API error response:', errorText);
+        throw new Error(`Whisper API request failed: ${response.status} - ${errorText}`);
+      }
+
+      // Response is plain text when response_format is 'text'
+      const transcriptionText = await response.text();
+      
+      console.log('Whisper transcription completed successfully');
+      console.log('Transcribed text:', transcriptionText);
+
       return {
         success: true,
-        transcription: transcription.text,
-        confidence: transcription.confidence,
+        transcription: transcriptionText,
       };
 
     } catch (error) {
-      console.error('REST API Transcription failed:', error);
+      console.error('Whisper transcription failed:', error);
       throw error;
     }
-  }
-
-  async uploadAudioFile(audioUri) {
-    try {
-      // Read the audio file as base64
-      const audioBase64 = await FileSystem.readAsStringAsync(audioUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      // Convert base64 to binary
-      const binaryString = atob(audioBase64);
-      const audioBytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        audioBytes[i] = binaryString.charCodeAt(i);
-      }
-
-      console.log(`Uploading ${audioBytes.length} bytes to AssemblyAI...`);
-
-      const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': this.API_KEY,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: audioBytes,
-      });
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
-      }
-
-      const { upload_url } = await uploadResponse.json();
-      console.log('Audio uploaded successfully:', upload_url);
-      return upload_url;
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw error;
-    }
-  }
-
-  async submitTranscriptionRequest(uploadUrl) {
-    try {
-      const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
-        method: 'POST',
-        headers: {
-          'Authorization': this.API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          audio_url: uploadUrl,
-          punctuate: true,
-          format_text: true,
-          word_boost: [
-            'SOAP', 'medical', 'patient', 'diagnosis', 'treatment', 
-            'symptoms', 'prescription', 'history', 'examination',
-            'subjective', 'objective', 'assessment', 'plan'
-          ],
-          speech_model: 'best',
-          language_code: 'en',
-        }),
-      });
-
-      if (!transcriptResponse.ok) {
-        const errorText = await transcriptResponse.text();
-        throw new Error(`Transcription request failed: ${transcriptResponse.status} - ${errorText}`);
-      }
-
-      const { id } = await transcriptResponse.json();
-      console.log('Transcription request submitted with ID:', id);
-      return id;
-    } catch (error) {
-      console.error('Transcription request error:', error);
-      throw error;
-    }
-  }
-
-  async pollForTranscription(transcriptId, maxAttempts = 60) {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        console.log(`Polling attempt ${attempt + 1}/${maxAttempts}...`);
-        
-        const response = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
-          headers: {
-            'Authorization': this.API_KEY,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Polling failed: ${response.status}`);
-        }
-
-        const transcript = await response.json();
-        console.log(`Transcription status: ${transcript.status}`);
-
-        if (transcript.status === 'completed') {
-          console.log('Transcription completed successfully');
-          console.log('Transcript text:', transcript.text);
-          return transcript;
-        } else if (transcript.status === 'error') {
-          throw new Error(`Transcription failed: ${transcript.error}`);
-        }
-
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (error) {
-        console.error('Polling error:', error);
-        throw error;
-      }
-    }
-
-    throw new Error('Transcription timeout - polling exceeded maximum attempts');
   }
 
   formatDuration(durationMs) {
