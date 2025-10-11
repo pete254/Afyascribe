@@ -1,20 +1,73 @@
+// App.js - Updated with Authentication
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import TranscriptionScreen from './src/screens/TranscriptionScreen';
 import SavedNotesScreen from './src/screens/SavedNotesScreen';
+import AuthScreen from './src/screens/AuthScreen';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 
-export default function App() {
+// Main App Component (inside AuthProvider)
+function MainApp() {
+  const { isAuthenticated, loading, logout, user } = useAuth();
   const [activeTab, setActiveTab] = useState('transcription');
+  const [editData, setEditData] = useState(null);
 
+  // Handle edit from SavedNotesScreen
+  const handleEditNote = (noteData) => {
+    setEditData(noteData);
+    setActiveTab('transcription');
+  };
+
+  // Handle edit complete
+  const handleEditComplete = () => {
+    setEditData(null);
+    setActiveTab('saved');
+  };
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Show auth screen if not authenticated
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
+
+  // Show main app if authenticated
   return (
     <View style={styles.container}>
+      {/* Header with User Info */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>SOAP Notes</Text>
+          <Text style={styles.headerSubtitle}>
+            Welcome, Dr. {user?.firstName || 'User'}
+          </Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.logoutButton} 
+          onPress={logout}
+        >
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Main Content */}
       <View style={styles.content}>
         {activeTab === 'transcription' ? (
-          <TranscriptionScreen />
+          <TranscriptionScreen 
+            editData={editData}
+            onEditComplete={handleEditComplete}
+          />
         ) : (
-          <SavedNotesScreen />
+          <SavedNotesScreen onEditNote={handleEditNote} />
         )}
       </View>
       
@@ -26,7 +79,7 @@ export default function App() {
         >
           <Text style={styles.tabIcon}>🎙️</Text>
           <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>
-            Transcription
+            New Note
           </Text>
         </TouchableOpacity>
         
@@ -46,16 +99,72 @@ export default function App() {
   );
 }
 
+// Root App Component (wraps with AuthProvider)
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#64748b',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  logoutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
   content: {
     flex: 1,
-    marginBottom: 80, // Make room for fixed tab bar
+    marginBottom: 80, // Make room for tab bar
   },
   tabBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     backgroundColor: '#ffffff',
     borderTopWidth: 1,

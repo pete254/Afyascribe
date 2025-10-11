@@ -44,13 +44,11 @@
           "microphonePermission": "Allow Medical Transcription to access your microphone for voice recording."
         }
       ],
-      "expo-audio",
       "expo-asset"
     ],
     "extra": {
-      "ASSEMBLY_AI_KEY": "4b237edb6123440ebfc448933fbf6c44",
       "eas": {
-        "projectId": "98e4558f-9771-421a-9461-092deadc3a4e"
+        "projectId": "24955648-c56f-4923-8785-a84a57815b37"
       }
     }
   }

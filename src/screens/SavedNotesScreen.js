@@ -1,17 +1,17 @@
-// src/screens/SavedNotesScreen.js - Firebase Integration
+// src/screens/SavedNotesScreen.js - Using Backend API
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
   Alert,
   FlatList,
   RefreshControl,
-  ActivityIndicator
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
-import FirebaseService from '../services/firebaseService';
+import apiService from '../services/apiService';
 
 export default function SavedNotesScreen() {
   const [savedNotes, setSavedNotes] = useState([]);
@@ -19,45 +19,83 @@ export default function SavedNotesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load notes from Firebase when component mounts
+  // Load notes from backend when component mounts
   useEffect(() => {
-    loadNotesFromFirebase();
+    loadNotesFromBackend();
   }, []);
 
-  const loadNotesFromFirebase = async () => {
+  const loadNotesFromBackend = async () => {
     try {
       setError(null);
-      console.log('Loading SOAP notes from Firebase...');
+      console.log('Loading SOAP notes from backend...');
       
-      const notes = await FirebaseService.getAllSoapNotes();
+      // Get notes from backend API
+      const response = await apiService.getSoapNotes();
+      console.log('Backend response:', response);
       
-      // Transform Firebase data to match existing UI format
+      // The backend returns paginated data
+      const notes = response.data || response || [];
+      
+      // Transform backend data to match UI format
       const transformedNotes = notes.map(note => ({
         id: note.id,
-        patientName: note.patientName || 'Unknown Patient',
+        patientName: note.patient ? `${note.patient.firstName} ${note.patient.lastName}` : 'Unknown Patient',
+        patientId: note.patient?.patientId || 'N/A',
         date: note.createdAt ? formatDate(note.createdAt) : 'Unknown Date',
         time: note.createdAt ? formatTime(note.createdAt) : 'Unknown Time',
-        soapNotes: note.formattedSoapNotes || 'No SOAP notes available',
+        
+        // SOAP sections
+        symptoms: note.symptoms || '',
+        physicalExamination: note.physicalExamination || '',
+        diagnosis: note.diagnosis || '',
+        management: note.management || '',
+        
+        // Combined view (for preview)
+        soapNotes: formatSoapPreview(note),
+        
         status: note.status || 'pending',
-        originalTranscription: note.originalTranscription || '',
-        medicalTermsFound: note.medicalTermsFound || [],
-        firebaseId: note.id // Keep track of Firebase document ID
+        createdBy: note.createdBy || {},
       }));
 
       setSavedNotes(transformedNotes);
-      console.log(`Loaded ${transformedNotes.length} notes from Firebase`);
+      console.log(`✅ Loaded ${transformedNotes.length} notes from backend`);
     } catch (error) {
-      console.error('Failed to load notes from Firebase:', error);
+      console.error('❌ Failed to load notes from backend:', error);
       setError(error.message);
-      Alert.alert('Error', `Failed to load notes: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  const formatSoapPreview = (note) => {
+    let preview = '';
+    if (note.symptoms) preview += `S: ${note.symptoms}\n\n`;
+    if (note.physicalExamination) preview += `O: ${note.physicalExamination}\n\n`;
+    if (note.diagnosis) preview += `A: ${note.diagnosis}\n\n`;
+    if (note.management) preview += `P: ${note.management}`;
+    return preview || 'No SOAP notes available';
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadNotesFromFirebase();
+    await loadNotesFromBackend();
     setRefreshing(false);
   };
 
@@ -74,8 +112,8 @@ export default function SavedNotesScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Delete from Firebase
-              await FirebaseService.deleteSoapNote(note.firebaseId);
+              console.log('🗑️ Deleting note:', id);
+              await apiService.deleteSoapNote(id);
               
               // Remove from local state
               setSavedNotes(prev => prev.filter(note => note.id !== id));
@@ -91,101 +129,45 @@ export default function SavedNotesScreen() {
     );
   };
 
-  const handleSubmitNote = (id) => {
-    const note = savedNotes.find(n => n.id === id);
-    
+  const handleViewNote = (note) => {
+    // Show full SOAP note details
     Alert.alert(
-      'Submit to Database',
-      `Submit the note for ${note.patientName} to the medical database?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Submit', 
-          onPress: async () => {
-            try {
-              // Update status in Firebase
-              await FirebaseService.updateSoapNoteStatus(
-                note.firebaseId, 
-                'submitted',
-                {
-                  submittedBy: 'Doctor', // You might want to add user authentication
-                  submissionNotes: 'Submitted to medical database'
-                }
-              );
-              
-              // Update local state
-              setSavedNotes(prev => 
-                prev.map(n => 
-                  n.id === id ? { ...n, status: 'submitted' } : n
-                )
-              );
-              
-              Alert.alert('Success', 'Note submitted to database!');
-            } catch (error) {
-              console.error('Failed to submit note:', error);
-              Alert.alert('Error', `Failed to submit note: ${error.message}`);
-            }
-          }
-        }
-      ]
+      `${note.patientName} - SOAP Note`,
+      note.soapNotes,
+      [{ text: 'Close' }],
+      { cancelable: true }
     );
-  };
-
-  const formatDate = (date) => {
-    if (!date) return 'Unknown Date';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-  };
-
-  const formatTime = (date) => {
-    if (!date) return 'Unknown Time';
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
   };
 
   const renderNoteItem = ({ item }) => (
     <View style={styles.noteCard}>
+      {/* Header */}
       <View style={styles.noteHeader}>
-        <View>
-          <Text style={styles.patientName}>{item.patientName}</Text>
-          <Text style={styles.dateTime}>{item.date} • {item.time}</Text>
-          {item.medicalTermsFound && item.medicalTermsFound.length > 0 && (
-            <Text style={styles.medicalTerms}>
-              Medical terms: {item.medicalTermsFound.slice(0, 3).join(', ')}
-              {item.medicalTermsFound.length > 3 && '...'}
-            </Text>
-          )}
+        <View style={styles.noteHeaderLeft}>
+          <Text style={styles.patientName}>👤 {item.patientName}</Text>
+          <Text style={styles.patientId}>ID: {item.patientId}</Text>
         </View>
-        <View style={[styles.statusBadge, 
-          item.status === 'submitted' ? styles.submittedBadge : styles.pendingBadge
-        ]}>
-          <Text style={[styles.statusText,
-            item.status === 'submitted' ? styles.submittedText : styles.pendingText
-          ]}>
-            {item.status === 'submitted' ? '✓ Submitted' : '⏳ Pending'}
-          </Text>
+        <View style={styles.noteHeaderRight}>
+          <Text style={styles.noteDate}>{item.date}</Text>
+          <Text style={styles.noteTime}>{item.time}</Text>
         </View>
       </View>
 
+      {/* SOAP Preview */}
       <ScrollView style={styles.soapPreview} nestedScrollEnabled={true}>
-        <Text style={styles.soapText}>{item.soapNotes}</Text>
+        <Text style={styles.soapText} numberOfLines={6}>
+          {item.soapNotes}
+        </Text>
       </ScrollView>
 
+      {/* Actions */}
       <View style={styles.actionButtons}>
-        {item.status === 'pending' && (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.submitButton]}
-            onPress={() => handleSubmitNote(item.id)}
-          >
-            <Text style={styles.actionButtonText}>📤 Submit to DB</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.viewButton]}
+          onPress={() => handleViewNote(item)}
+        >
+          <Text style={styles.actionButtonText}>👁️ View Full</Text>
+        </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.actionButton, styles.deleteButton]}
@@ -203,10 +185,10 @@ export default function SavedNotesScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>💾 Saved Notes</Text>
-          <Text style={styles.subtitle}>Loading from Firebase...</Text>
+          <Text style={styles.subtitle}>Loading...</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3b82f6" />
+          <ActivityIndicator size="large" color="#0f766e" />
           <Text style={styles.loadingText}>Loading your saved notes...</Text>
         </View>
       </View>
@@ -219,14 +201,14 @@ export default function SavedNotesScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>💾 Saved Notes</Text>
-          <Text style={styles.subtitle}>Connection Error</Text>
+          <Text style={styles.subtitle}>Error</Text>
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorTitle}>Unable to load notes</Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadNotesFromFirebase}>
-            <Text style={styles.retryButtonText}>Try Again</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadNotesFromBackend}>
+            <Text style={styles.retryButtonText}>🔄 Try Again</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -238,7 +220,7 @@ export default function SavedNotesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>💾 Saved Notes</Text>
         <Text style={styles.subtitle}>
-          {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''} from Firebase
+          {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''}
         </Text>
       </View>
 
@@ -247,7 +229,7 @@ export default function SavedNotesScreen() {
           <Text style={styles.emptyIcon}>📋</Text>
           <Text style={styles.emptyTitle}>No saved notes yet</Text>
           <Text style={styles.emptySubtitle}>
-            Create and format notes in the Transcription tab to see them here
+            Create and save notes in the Transcription tab to see them here
           </Text>
           <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
             <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
@@ -257,15 +239,15 @@ export default function SavedNotesScreen() {
         <FlatList
           data={savedNotes}
           renderItem={renderNoteItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.notesList}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={['#3b82f6']}
-              tintColor="#3b82f6"
+              colors={['#0f766e']}
+              tintColor="#0f766e"
             />
           }
         />
@@ -274,12 +256,10 @@ export default function SavedNotesScreen() {
   );
 }
 
-// Add these new styles to the existing styles object
 const styles = StyleSheet.create({
-  // ... existing styles ...
   container: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f3f4f6',
   },
   header: {
     backgroundColor: '#ffffff',
@@ -287,17 +267,17 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: '#e5e7eb',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#1f2937',
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#64748b',
+    color: '#6b7280',
     textAlign: 'center',
     marginTop: 4,
   },
@@ -305,13 +285,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    padding: 20,
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 12,
     fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
+    color: '#6b7280',
   },
   errorContainer: {
     flex: 1,
@@ -320,7 +299,7 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   errorIcon: {
-    fontSize: 48,
+    fontSize: 64,
     marginBottom: 16,
   },
   errorTitle: {
@@ -331,32 +310,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   errorSubtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#0f766e',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  refreshButton: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  refreshButtonText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -364,9 +330,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   noteCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -377,82 +343,67 @@ const styles = StyleSheet.create({
   noteHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
     marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  noteHeaderLeft: {
+    flex: 1,
+  },
+  noteHeaderRight: {
+    alignItems: 'flex-end',
   },
   patientName: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 4,
   },
-  dateTime: {
+  patientId: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  noteDate: {
     fontSize: 14,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  medicalTerms: {
-    fontSize: 12,
-    color: '#7c3aed',
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  pendingBadge: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#f59e0b',
-  },
-  submittedBadge: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#22c55e',
-  },
-  statusText: {
-    fontSize: 12,
     fontWeight: '600',
+    color: '#0f766e',
+    marginBottom: 2,
   },
-  pendingText: {
-    color: '#d97706',
-  },
-  submittedText: {
-    color: '#16a34a',
+  noteTime: {
+    fontSize: 12,
+    color: '#9ca3af',
   },
   soapPreview: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    backgroundColor: '#f9fafb',
     borderRadius: 8,
     padding: 12,
-    maxHeight: 200,
     marginBottom: 12,
+    maxHeight: 150,
   },
   soapText: {
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 20,
     color: '#374151',
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   actionButton: {
     flex: 1,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  submitButton: {
-    backgroundColor: '#3b82f6',
+  viewButton: {
+    backgroundColor: '#0f766e',
   },
   deleteButton: {
-    backgroundColor: '#dc2626',
+    backgroundColor: '#ef4444',
   },
   actionButtonText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -478,5 +429,17 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
+    marginBottom: 24,
+  },
+  refreshButton: {
+    backgroundColor: '#0f766e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

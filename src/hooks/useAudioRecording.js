@@ -1,4 +1,4 @@
-// src/hooks/useAudioRecording.js
+// src/hooks/useAudioRecording.js 
 import { useState, useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import AudioService from '../services/AudioService';
@@ -68,69 +68,56 @@ export const useAudioRecording = () => {
       
       console.log('Hook: Stopping recording...');
       setIsRecording(false);
-      setIsTranscribing(true); // Show transcription animation
+      setIsTranscribing(true);
       
       const result = await AudioService.stopRecording();
       
       if (result.success) {
         console.log('Hook: Recording stopped successfully');
         
-        if (result.transcriptionError) {
-          // Recording succeeded but transcription failed
-          console.error('Transcription failed:', result.transcriptionError);
-          Alert.alert(
-            'Transcription Failed',
-            `Recording was saved but transcription failed: ${result.transcriptionError}`,
-            [
-              { text: 'Cancel' },
-              { 
-                text: 'Retry Transcription', 
-                onPress: async () => {
-                  try {
-                    setIsTranscribing(true);
-                    const transcriptionResult = await AudioService.transcribeAudio(result.uri);
-                    if (transcriptionResult.success && transcriptionResult.transcription) {
-                      setTranscription(transcriptionResult.transcription);
-                      Alert.alert(
-                        'Transcription Complete',
-                        `Your recording has been transcribed successfully!`,
-                        [{ text: 'OK' }]
-                      );
-                    }
-                  } catch (retryError) {
-                    Alert.alert('Retry Failed', retryError.message);
-                  } finally {
-                    setIsTranscribing(false);
-                  }
-                }
-              }
-            ]
-          );
-        } else if (result.transcript && result.transcript.trim()) {
-          // Both recording and transcription succeeded
+        // ✅ FIX: Handle transcription result WITHOUT showing Alert immediately
+        if (result.transcript && result.transcript.trim()) {
+          // SUCCESS - Set transcription state
           console.log('Hook: Setting transcription:', result.transcript);
           setTranscription(result.transcript);
+          console.log('Hook: ✅ Transcription state updated');
+          
+          // ✅ Important: Set isTranscribing to false AFTER setting transcription
+          // This ensures TranscriptionScreen sees the transcription value
+          setTimeout(() => {
+            setIsTranscribing(false);
+            console.log('Hook: ✅ isTranscribing set to false');
+          }, 100);
+          
+        } else if (result.transcriptionError) {
+          // Transcription failed
+          console.error('Transcription failed:', result.transcriptionError);
+          setIsTranscribing(false);
           
           Alert.alert(
-            'Recording Complete',
-            `Your recording has been transcribed successfully!\n\nTranscribed: "${result.transcript.substring(0, 100)}${result.transcript.length > 100 ? '...' : ''}"`,
+            'Transcription Failed',
+            `Recording saved but transcription failed: ${result.transcriptionError}`,
             [{ text: 'OK' }]
           );
         } else {
-          // Recording succeeded but no transcription
+          // No speech detected
           console.log('Hook: No transcription received');
+          setIsTranscribing(false);
+          
           Alert.alert(
             'No Speech Detected',
-            'Recording completed successfully, but no speech was detected. Please try recording again and speak clearly.',
+            'No speech was detected. Please try again and speak clearly.',
             [{ text: 'OK' }]
           );
         }
       } else {
+        setIsTranscribing(false);
         throw new Error('Recording failed to stop properly');
       }
     } catch (error) {
       console.error('Hook: Failed to stop recording:', error);
       setIsRecording(false);
+      setIsTranscribing(false);
       setError(error.message);
       
       Alert.alert(
@@ -138,8 +125,6 @@ export const useAudioRecording = () => {
         `Failed to stop recording: ${error.message}`,
         [{ text: 'OK' }]
       );
-    } finally {
-      setIsTranscribing(false);
     }
   };
 

@@ -1,259 +1,189 @@
-// src/services/soapFormatter.js
+// src/services/soapFormatter.js - Updated without ICD11 API
 import { chatWithGemini } from './geminiClient';
-import ICD11Service from './icd11Service';
 
-const SOAP_PROMPT = `You are a medical AI assistant with extensive knowledge of medical terminology, abbreviations, and clinical documentation. Format the following doctor's transcribed notes into proper SOAP format:
+/**
+ * Updated to format individual SOAP sections (not entire note)
+ * Removed ICD11 API dependency - Gemini knows ICD-11 codes
+ */
 
-S - Subjective (what patient reports - symptoms, concerns, history)
-O - Objective (measurable findings - vitals, exam results, observations)  
-A - Assessment (diagnosis, clinical thinking, differential diagnosis)
-P - Plan (treatment plan, medications, follow-up, patient education)
+const SECTION_FORMAT_PROMPT = `You are a medical AI assistant with knowledge of ICD-11 diagnostic codes and medical terminology.
 
-CRITICAL FORMATTING RULES:
-- ONLY include information that is explicitly mentioned in the transcribed notes
+Format the following medical notes for the {SECTION_NAME} section of a SOAP note.
+
+CRITICAL RULES:
+- ONLY include information explicitly mentioned in the notes
 - DO NOT add suggestions, recommendations, or typical treatments
-- DO NOT write "Not documented", "blank", "-", or any placeholder text
-- If a section has no relevant information from the transcription, leave that section completely empty
-- DO NOT suggest tests, medications, or treatments that weren't mentioned
-- DO NOT add standard medical recommendations or protocols
-- Focus ONLY on formatting and organizing the information that was actually transcribed
+- Use proper medical terminology and abbreviations
+- If relevant diagnosis is mentioned, include appropriate ICD-11 code in parentheses
+- Keep it concise and professional
+- Format appropriately for the section type
 
-Medical Guidelines:
-- Use standard medical abbreviations appropriately (e.g., HTN for hypertension, DM for diabetes mellitus, SOB for shortness of breath)
-- Expand unclear abbreviations if context suggests their meaning
-- Preserve exact medication names, dosages, and frequencies as stated
-- Include vital signs with proper units (BP, HR, RR, Temp, O2 sat) only if mentioned
-- Use proper medical terminology for anatomical locations and procedures
-- Format lab values with reference ranges only if mentioned in the original notes
-- Keep medical accuracy paramount
-- Only organize and format what was actually said by the transcriber
+Notes to format:`;
 
-Common Medical Abbreviations Reference:
-- HTN = Hypertension
-- DM = Diabetes Mellitus  
-- SOB = Shortness of Breath
-- CP = Chest Pain
-- N/V = Nausea/Vomiting
-- URI = Upper Respiratory Infection
-- UTI = Urinary Tract Infection
-- CAD = Coronary Artery Disease
-- CHF = Congestive Heart Failure
-- COPD = Chronic Obstructive Pulmonary Disease
-- GERD = Gastroesophageal Reflux Disease
+/**
+ * Format a single SOAP section with AI
+ * @param {string} sectionName - 'Symptoms', 'Physical Examination', 'Diagnosis', or 'Management'
+ * @param {string} rawText - Raw transcribed or typed text
+ * @returns {Promise<string>} Formatted text for that section
+ */
+export async function formatSoapSection(sectionName, rawText) {
+  if (!rawText?.trim()) {
+    return '';
+  }
 
-IMPORTANT: Your job is to organize and format the transcribed content, NOT to add medical knowledge or suggestions. If the transcriber didn't mention a plan, assessment, or objective findings, leave those sections empty.
+  try {
+    console.log(`Formatting ${sectionName} section with AI...`);
+    
+    const prompt = SECTION_FORMAT_PROMPT
+      .replace('{SECTION_NAME}', sectionName) + 
+      `\n\n"${rawText.trim()}"`;
+    
+    const formatted = await chatWithGemini(prompt);
+    
+    return formatted.trim();
+  } catch (error) {
+    console.error(`Error formatting ${sectionName}:`, error);
+    // Return original text if formatting fails
+    return rawText;
+  }
+}
 
-Transcribed notes to format:`;
-
+/**
+ * Format all four SOAP sections at once (for backward compatibility)
+ * @deprecated Use formatSoapSection for individual sections instead
+ */
 export async function formatToSOAP(transcribedText) {
   if (!transcribedText?.trim()) {
     throw new Error('No transcribed text provided');
   }
 
   try {
-    console.log('Starting enhanced SOAP formatting with ICD-11 integration...');
+    console.log('Formatting complete SOAP note...');
     
-    // Step 1: Format with Gemini (enhanced with strict no-suggestion rules)
-    const prompt = `${SOAP_PROMPT}\n\n"${transcribedText.trim()}"`;
-    const formattedNotes = await chatWithGemini(prompt);
-    
-    // Step 2: Extract medical terms for ICD-11 lookup
-    const medicalTerms = ICD11Service.extractMedicalTerms(transcribedText);
-    console.log('Extracted medical terms:', medicalTerms);
-    
-    let enhancedNotes = formattedNotes;
-    
-    // Step 3: Get ICD-11 suggestions if we found medical terms
-    if (medicalTerms.length > 0) {
-      try {
-        console.log('Searching ICD-11 for medical terms...');
-        const icdResults = await ICD11Service.searchConditions(medicalTerms);
-        
-        if (icdResults && icdResults.length > 0) {
-          console.log(`Found ${icdResults.length} ICD-11 suggestions`);
-          const icdSection = ICD11Service.formatICD11Results(icdResults);
-          enhancedNotes += icdSection;
-        } else {
-          console.log('No ICD-11 codes found for the extracted terms');
-        }
-      } catch (icdError) {
-        console.warn('ICD-11 lookup failed, proceeding without codes:', icdError);
-        // Don't fail the entire operation if ICD-11 lookup fails
-      }
-    }
+    const prompt = `You are a medical AI assistant with knowledge of ICD-11 codes and medical terminology.
+
+Format the following doctor's notes into proper SOAP format with four sections:
+
+**Symptoms & Diagnosis** - What patient reports
+**Physical Examination** - Clinical findings and observations
+**Diagnosis** - Medical diagnosis (include ICD-11 codes if applicable)
+**Management** - Treatment plan
+
+CRITICAL RULES:
+- ONLY use information explicitly mentioned in the notes
+- DO NOT add suggestions or typical treatments
+- Use proper medical terminology and abbreviations
+- Include ICD-11 codes where relevant (e.g., "Hypertension (BA00)")
+- Keep each section concise and professional
+- If a section has no information, leave it empty
+
+Notes to format:
+
+"${transcribedText.trim()}"`;
+
+    const formatted = await chatWithGemini(prompt);
     
     return {
       success: true,
       original: transcribedText,
-      formatted: enhancedNotes,
-      medicalTermsFound: medicalTerms,
+      formatted: formatted.trim(),
       timestamp: new Date().toISOString()
     };
     
   } catch (error) {
-    console.error('Enhanced SOAP formatting error:', error);
+    console.error('SOAP formatting error:', error);
     throw new Error(`Failed to format notes: ${error.message}`);
   }
 }
 
-export async function improveSOAP(existingSOAP, additionalNotes) {
-  const prompt = `Improve and update this existing SOAP note with additional information, maintaining proper medical terminology and abbreviations:
+/**
+ * Extract medical terms from text (for reference)
+ * No longer used for API calls, just for display
+ */
+export function extractMedicalTerms(text) {
+  if (!text) return [];
 
-EXISTING SOAP:
-${existingSOAP}
-
-ADDITIONAL NOTES:
-${additionalNotes}
-
-CRITICAL RULES:
-- ONLY add information that is explicitly mentioned in the additional notes
-- DO NOT suggest treatments, tests, or medications that weren't mentioned
-- DO NOT add standard medical recommendations
-- Only integrate the new factual information into the existing SOAP format
-- Maintain medical accuracy and proper abbreviations
-- Focus on organizing and formatting, not on adding medical knowledge
-
-Please integrate the new information appropriately into the existing SOAP format, maintaining medical accuracy, proper abbreviations, and only including what was actually documented.`;
-
-  try {
-    const improved = await chatWithGemini(prompt);
-    
-    // Also try to enhance with ICD-11 if new medical terms are found
-    const medicalTerms = ICD11Service.extractMedicalTerms(additionalNotes);
-    
-    if (medicalTerms.length > 0) {
-      try {
-        const icdResults = await ICD11Service.searchConditions(medicalTerms);
-        if (icdResults && icdResults.length > 0) {
-          const icdSection = ICD11Service.formatICD11Results(icdResults);
-          return improved + icdSection;
-        }
-      } catch (icdError) {
-        console.warn('ICD-11 enhancement failed during improvement:', icdError);
-      }
-    }
-    
-    return improved;
-  } catch (error) {
-    console.error('SOAP improvement error:', error);
-    throw error;
-  }
-}
-
-// New function to get ICD-11 codes for existing SOAP notes
-export async function addICD11Codes(soapText) {
-  try {
-    const medicalTerms = ICD11Service.extractMedicalTerms(soapText);
-    
-    if (medicalTerms.length === 0) {
-      throw new Error('No medical terms found to search for ICD-11 codes');
-    }
-    
-    const icdResults = await ICD11Service.searchConditions(medicalTerms);
-    
-    if (!icdResults || icdResults.length === 0) {
-      throw new Error('No ICD-11 codes found for the medical terms');
-    }
-    
-    return {
-      success: true,
-      codes: icdResults,
-      formattedCodes: ICD11Service.formatICD11Results(icdResults),
-      searchTerms: medicalTerms
-    };
-    
-  } catch (error) {
-    console.error('ICD-11 code lookup error:', error);
-    throw error;
-  }
-}
-
-// Utility function to expand medical abbreviations (enhanced list)
-export function expandMedicalAbbreviations(text) {
-  const abbreviations = {
+  const commonMedicalTerms = [
     // Cardiovascular
-    'HTN': 'Hypertension',
-    'CAD': 'Coronary Artery Disease',
-    'CHF': 'Congestive Heart Failure',
-    'MI': 'Myocardial Infarction',
-    'DVT': 'Deep Vein Thrombosis',
-    'PE': 'Pulmonary Embolism',
-    'AFIB': 'Atrial Fibrillation',
-    'CHD': 'Coronary Heart Disease',
-    'MVP': 'Mitral Valve Prolapse',
-    'PVD': 'Peripheral Vascular Disease',
-    
-    // Endocrine
-    'DM': 'Diabetes Mellitus',
-    'T1DM': 'Type 1 Diabetes Mellitus',
-    'T2DM': 'Type 2 Diabetes Mellitus',
-    'DKA': 'Diabetic Ketoacidosis',
-    'HbA1c': 'Hemoglobin A1c',
+    'hypertension', 'hypotension', 'tachycardia', 'bradycardia', 'arrhythmia',
+    'heart failure', 'myocardial infarction', 'angina', 'stroke', 'DVT',
     
     // Respiratory
-    'SOB': 'Shortness of Breath',
-    'COPD': 'Chronic Obstructive Pulmonary Disease',
-    'URI': 'Upper Respiratory Infection',
-    'URTI': 'Upper Respiratory Tract Infection',
-    'LRTI': 'Lower Respiratory Tract Infection',
-    'OSA': 'Obstructive Sleep Apnea',
-    'TB': 'Tuberculosis',
+    'asthma', 'COPD', 'pneumonia', 'bronchitis', 'dyspnea', 'cough',
+    'shortness of breath', 'wheezing', 'respiratory infection',
+    
+    // Endocrine
+    'diabetes', 'hyperthyroidism', 'hypothyroidism', 'hyperglycemia',
+    'hypoglycemia', 'metabolic syndrome',
     
     // Gastrointestinal
-    'GERD': 'Gastroesophageal Reflux Disease',
-    'N/V': 'Nausea/Vomiting',
-    'IBD': 'Inflammatory Bowel Disease',
-    'IBS': 'Irritable Bowel Syndrome',
-    'PUD': 'Peptic Ulcer Disease',
-    'GI': 'Gastrointestinal',
-    
-    // Genitourinary
-    'UTI': 'Urinary Tract Infection',
-    'BPH': 'Benign Prostatic Hyperplasia',
-    'CKD': 'Chronic Kidney Disease',
-    'ESRD': 'End Stage Renal Disease',
+    'GERD', 'gastritis', 'peptic ulcer', 'IBS', 'diarrhea', 'constipation',
+    'nausea', 'vomiting', 'abdominal pain',
     
     // Neurological
-    'CVA': 'Cerebrovascular Accident',
-    'TIA': 'Transient Ischemic Attack',
-    'MS': 'Multiple Sclerosis',
-    'PD': 'Parkinson\'s Disease',
-    'AD': 'Alzheimer\'s Disease',
+    'headache', 'migraine', 'seizure', 'dizziness', 'vertigo', 'syncope',
+    'neuropathy', 'tremor',
     
     // Musculoskeletal
-    'OA': 'Osteoarthritis',
-    'RA': 'Rheumatoid Arthritis',
-    'LBP': 'Low Back Pain',
+    'arthritis', 'osteoarthritis', 'rheumatoid arthritis', 'back pain',
+    'joint pain', 'fracture', 'sprain',
     
-    // General Symptoms
+    // Infectious
+    'infection', 'fever', 'sepsis', 'UTI', 'URI', 'cellulitis',
+    
+    // General
+    'pain', 'fatigue', 'weakness', 'malaise', 'weight loss', 'weight gain',
+    'edema', 'rash', 'anemia'
+  ];
+
+  const lowerText = text.toLowerCase();
+  const foundTerms = [];
+
+  commonMedicalTerms.forEach(term => {
+    if (lowerText.includes(term)) {
+      foundTerms.push(term);
+    }
+  });
+
+  return [...new Set(foundTerms)]; // Remove duplicates
+}
+
+/**
+ * Expand common medical abbreviations
+ */
+export function expandMedicalAbbreviations(text) {
+  const abbreviations = {
+    'HTN': 'Hypertension',
+    'DM': 'Diabetes Mellitus',
+    'CAD': 'Coronary Artery Disease',
+    'CHF': 'Congestive Heart Failure',
+    'COPD': 'Chronic Obstructive Pulmonary Disease',
+    'SOB': 'Shortness of Breath',
     'CP': 'Chest Pain',
+    'N/V': 'Nausea/Vomiting',
+    'URI': 'Upper Respiratory Infection',
+    'UTI': 'Urinary Tract Infection',
+    'GERD': 'Gastroesophageal Reflux Disease',
+    'BP': 'Blood Pressure',
+    'HR': 'Heart Rate',
+    'RR': 'Respiratory Rate',
+    'Temp': 'Temperature',
+    'O2': 'Oxygen',
     'HA': 'Headache',
-    'F/C': 'Fever/Chills',
     'DOE': 'Dyspnea on Exertion',
     'PND': 'Paroxysmal Nocturnal Dyspnea',
-    
-    // Common Medical Terms
-    'Hx': 'History',
-    'FHx': 'Family History',
-    'SHx': 'Social History',
-    'PMHx': 'Past Medical History',
-    'PSHx': 'Past Surgical History',
-    'ROS': 'Review of Systems',
-    'PE': 'Physical Examination',
-    'VS': 'Vital Signs',
-    'HEENT': 'Head, Eyes, Ears, Nose, Throat',
-    'CV': 'Cardiovascular',
-    'Resp': 'Respiratory',
-    'Abd': 'Abdomen',
-    'Ext': 'Extremities',
-    'Neuro': 'Neurological'
+    'CVA': 'Cerebrovascular Accident',
+    'TIA': 'Transient Ischemic Attack',
+    'MI': 'Myocardial Infarction',
+    'PE': 'Pulmonary Embolism',
+    'DVT': 'Deep Vein Thrombosis',
   };
-  
+
   let expandedText = text;
   Object.entries(abbreviations).forEach(([abbr, full]) => {
     const regex = new RegExp(`\\b${abbr}\\b`, 'g');
     expandedText = expandedText.replace(regex, `${abbr} (${full})`);
   });
-  
+
   return expandedText;
 }
