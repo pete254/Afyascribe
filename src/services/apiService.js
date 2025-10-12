@@ -1,4 +1,4 @@
-// src/services/apiService.js
+// src/services/apiService.js -
 import storage from '../utils/storage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
@@ -88,6 +88,30 @@ class ApiService {
    */
   async logout() {
     await storage.clearAll();
+  }
+
+  /**
+   * ✅ NEW: Forgot Password - Request password reset
+   */
+  async forgotPassword(email) {
+    const data = await this.request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+
+    return data;
+  }
+
+  /**
+   * ✅ NEW: Reset Password - Reset password with token
+   */
+  async resetPassword(token, newPassword) {
+    const data = await this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
+
+    return data;
   }
 
   // ==================== PATIENT ENDPOINTS ====================

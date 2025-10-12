@@ -1,4 +1,4 @@
-// src/screens/AuthScreen.js
+// src/screens/AuthScreen.js - Updated with password visibility toggle
 import React, { useState } from 'react';
 import {
   View,
@@ -14,13 +14,16 @@ import {
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
-export default function AuthScreen() {
+export default function AuthScreen({ navigation }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // ✅ NEW: Password visibility state
+  const [showPassword, setShowPassword] = useState(false);
 
   const { login, register } = useAuth();
 
@@ -73,6 +76,18 @@ export default function AuthScreen() {
     setPassword('');
     setFirstName('');
     setLastName('');
+    setShowPassword(false);
+  };
+
+  // ✅ NEW: Navigate to Forgot Password screen
+  const handleForgotPassword = () => {
+    // For standalone stack navigator
+    if (navigation && navigation.navigate) {
+      navigation.navigate('ForgotPassword');
+    } else {
+      // For tab/nested navigators - you may need to adjust this
+      Alert.alert('Info', 'Forgot password feature coming soon!');
+    }
   };
 
   return (
@@ -140,24 +155,46 @@ export default function AuthScreen() {
               />
             </View>
 
-            {/* Password */}
+            {/* Password with visibility toggle */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={isLogin ? 'Enter password' : 'Min. 8 characters'}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                editable={!loading}
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder={isLogin ? 'Enter password' : 'Min. 8 characters'}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  editable={!loading}
+                />
+                {/* ✅ NEW: Eye icon to toggle password visibility */}
+                <TouchableOpacity
+                  style={styles.eyeIcon}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={styles.eyeIconText}>
+                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               {!isLogin && (
                 <Text style={styles.hint}>
                   Must contain uppercase, lowercase, and number
                 </Text>
               )}
             </View>
+
+            {/* ✅ NEW: Forgot Password link (Login mode only) */}
+            {isLogin && (
+              <TouchableOpacity 
+                style={styles.forgotPasswordContainer}
+                onPress={handleForgotPassword}
+                disabled={loading}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Submit Button */}
             <TouchableOpacity
@@ -276,10 +313,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
+  // ✅ NEW: Password container with eye icon
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  eyeIcon: {
+    padding: 16,
+  },
+  eyeIconText: {
+    fontSize: 20,
+  },
   hint: {
     fontSize: 12,
     color: '#94a3b8',
     marginTop: 6,
+  },
+  // ✅ NEW: Forgot password link
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 16,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: '#3b82f6',
+    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: '#3b82f6',

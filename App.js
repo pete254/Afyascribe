@@ -1,29 +1,22 @@
-// App.js - Updated with Authentication
+// App.js - Updated with password reset navigation
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TranscriptionScreen from './src/screens/TranscriptionScreen';
 import SavedNotesScreen from './src/screens/SavedNotesScreen';
 import AuthScreen from './src/screens/AuthScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+
+const Stack = createNativeStackNavigator();
 
 // Main App Component (inside AuthProvider)
 function MainApp() {
   const { isAuthenticated, loading, logout, user } = useAuth();
   const [activeTab, setActiveTab] = useState('transcription');
-  const [editData, setEditData] = useState(null);
-
-  // Handle edit from SavedNotesScreen
-  const handleEditNote = (noteData) => {
-    setEditData(noteData);
-    setActiveTab('transcription');
-  };
-
-  // Handle edit complete
-  const handleEditComplete = () => {
-    setEditData(null);
-    setActiveTab('saved');
-  };
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -35,9 +28,17 @@ function MainApp() {
     );
   }
 
-  // Show auth screen if not authenticated
+  // Show auth screens if not authenticated
   if (!isAuthenticated) {
-    return <AuthScreen />;
+    return (
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Auth" component={AuthScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
   }
 
   // Show main app if authenticated
@@ -62,12 +63,9 @@ function MainApp() {
       {/* Main Content */}
       <View style={styles.content}>
         {activeTab === 'transcription' ? (
-          <TranscriptionScreen 
-            editData={editData}
-            onEditComplete={handleEditComplete}
-          />
+          <TranscriptionScreen />
         ) : (
-          <SavedNotesScreen onEditNote={handleEditNote} />
+          <SavedNotesScreen />
         )}
       </View>
       

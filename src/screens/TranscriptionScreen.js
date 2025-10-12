@@ -1,4 +1,4 @@
-// src/screens/TranscriptionScreen.js - DEBUGGED VERSION
+// src/screens/TranscriptionScreen.js - Updated to use soapFormatter
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -48,7 +48,7 @@ export default function TranscriptionScreen() {
     clearTranscription,
   } = useAudioRecording();
 
-  // ✅ FIX: Handle transcription completion - watch transcription directly
+  // Handle transcription completion
   useEffect(() => {
     console.log('📝 Transcription useEffect triggered:', {
       transcription,
@@ -57,8 +57,6 @@ export default function TranscriptionScreen() {
       activeSection: activeRecordingSection,
     });
     
-    // Process when we have transcription text AND an active section
-    // Don't wait for isTranscribing to be false
     if (transcription && transcription.trim() && activeRecordingSection) {
       console.log(`✅ Adding transcription to ${activeRecordingSection}: "${transcription}"`);
       
@@ -95,7 +93,6 @@ export default function TranscriptionScreen() {
           console.warn('❌ Unknown section:', activeRecordingSection);
       }
       
-      // Clear after adding
       console.log('🧹 Clearing activeRecordingSection and transcription');
       setActiveRecordingSection(null);
       clearTranscription();
@@ -107,8 +104,6 @@ export default function TranscriptionScreen() {
     
     if (isRecording) {
       console.log('⚠️ Already recording, stopping...');
-      // ✅ FIX: Don't clear activeRecordingSection here!
-      // Let the useEffect clear it after adding transcription
       await toggleRecording();
     } else {
       setActiveRecordingSection(sectionName);
@@ -116,6 +111,7 @@ export default function TranscriptionScreen() {
     }
   };
 
+  // ✅ UPDATED: Now uses formatSoapSection from soapFormatter.js
   const handleFormatSection = async (sectionTitle, sectionText, setSectionText) => {
     if (!sectionText.trim()) {
       Alert.alert('Error', `Please add some text to ${sectionTitle} before formatting`);
@@ -126,14 +122,23 @@ export default function TranscriptionScreen() {
     setFormatingSections((prev) => ({ ...prev, [sectionKey]: true }));
 
     try {
-      const { chatWithGemini } = require('../services/geminiClient');
+      // ✅ Use the centralized soapFormatter function
+      const { formatSoapSection } = require('../services/soapFormatter');
       
-      const prompt = `Format the following medical notes professionally for the ${sectionTitle} section. Keep it concise and medical:\n\n${sectionText}`;
-      const formatted = await chatWithGemini(prompt);
+      console.log(`🔄 Formatting ${sectionTitle}...`);
+      const formatted = await formatSoapSection(sectionTitle, sectionText);
       
-      setSectionText(formatted);
-      Alert.alert('Success', `${sectionTitle} formatted successfully!`);
+      if (formatted && formatted.trim()) {
+        setSectionText(formatted);
+        // ✅ No success alert - just silently update the text
+        console.log(`✅ ${sectionTitle} formatted successfully`);
+      } else {
+        // ✅ No warning alert - just keep original text
+        console.log(`⚠️ Formatting returned empty for ${sectionTitle}`);
+      }
     } catch (error) {
+      console.error(`❌ Format error for ${sectionTitle}:`, error);
+      // ⚠️ Keep error alert for actual failures (optional - you can remove this too)
       Alert.alert('Error', `Failed to format: ${error.message}`);
     } finally {
       setFormatingSections((prev) => ({ ...prev, [sectionKey]: false }));
