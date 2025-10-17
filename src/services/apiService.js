@@ -1,4 +1,4 @@
-// src/services/apiService.js -
+// src/services/apiService.js - Complete Updated Version
 import storage from '../utils/storage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
@@ -91,7 +91,7 @@ class ApiService {
   }
 
   /**
-   * ✅ NEW: Forgot Password - Request password reset
+   * Forgot Password - Request password reset
    */
   async forgotPassword(email) {
     const data = await this.request('/auth/forgot-password', {
@@ -103,7 +103,7 @@ class ApiService {
   }
 
   /**
-   * ✅ NEW: Reset Password - Reset password with token
+   * Reset Password - Reset password with token
    */
   async resetPassword(token, newPassword) {
     const data = await this.request('/auth/reset-password', {
@@ -219,6 +219,25 @@ class ApiService {
    */
   async getSoapNotesStatistics() {
     return await this.request('/soap-notes/statistics');
+  }
+
+  // ==================== 🆕 NEW: PATIENT HISTORY ENDPOINTS ====================
+
+  /**
+   * 🆕 NEW: Get all SOAP notes for a specific patient
+   */
+  async getPatientHistory(patientId) {
+    return await this.request(`/soap-notes/patient/${patientId}`);
+  }
+
+  /**
+   * 🆕 NEW: Edit a SOAP note with history tracking
+   */
+  async editSoapNoteWithHistory(noteId, updateData) {
+    return await this.request(`/soap-notes/${noteId}/edit`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData),
+    });
   }
 }
 

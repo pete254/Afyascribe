@@ -1,4 +1,4 @@
-// App.js - Updated with password reset navigation
+// App.js - Updated with Patient History
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
@@ -6,6 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TranscriptionScreen from './src/screens/TranscriptionScreen';
 import SavedNotesScreen from './src/screens/SavedNotesScreen';
+import PatientHistoryScreen from './src/screens/PatientHistoryScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
@@ -17,6 +18,8 @@ const Stack = createNativeStackNavigator();
 function MainApp() {
   const { isAuthenticated, loading, logout, user } = useAuth();
   const [activeTab, setActiveTab] = useState('transcription');
+  const [activeScreen, setActiveScreen] = useState('transcription'); // 'transcription', 'saved', 'patient-history'
+  const [selectedPatient, setSelectedPatient] = useState(null);
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -41,6 +44,59 @@ function MainApp() {
     );
   }
 
+  // Navigation handlers
+  const goToPatientHistory = (patient) => {
+    setSelectedPatient(patient);
+    setActiveScreen('patient-history');
+  };
+
+  const goToTranscription = (patient = null) => {
+    if (patient) {
+      setSelectedPatient(patient);
+    }
+    setActiveScreen('transcription');
+    setActiveTab('transcription');
+  };
+
+  const goToSavedNotes = () => {
+    setActiveScreen('saved');
+    setActiveTab('saved');
+  };
+
+  const goBack = () => {
+    setActiveScreen(activeTab);
+    setSelectedPatient(null);
+  };
+
+  // Render active screen
+  const renderScreen = () => {
+    switch (activeScreen) {
+      case 'patient-history':
+        return (
+          <PatientHistoryScreen
+            patient={selectedPatient}
+            onBack={goBack}
+            onAddNewNote={goToTranscription}
+          />
+        );
+      case 'saved':
+        return (
+          <SavedNotesScreen
+            onViewPatientHistory={goToPatientHistory}
+          />
+        );
+      case 'transcription':
+      default:
+        return (
+          <TranscriptionScreen
+            preselectedPatient={selectedPatient}
+            onViewPatientHistory={goToPatientHistory}
+            onClearPatient={() => setSelectedPatient(null)}
+          />
+        );
+    }
+  };
+
   // Show main app if authenticated
   return (
     <View style={styles.container}>
@@ -62,35 +118,36 @@ function MainApp() {
 
       {/* Main Content */}
       <View style={styles.content}>
-        {activeTab === 'transcription' ? (
-          <TranscriptionScreen />
-        ) : (
-          <SavedNotesScreen />
-        )}
+        {renderScreen()}
       </View>
       
-      {/* Bottom Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'transcription' && styles.activeTab]}
-          onPress={() => setActiveTab('transcription')}
-        >
-          <Text style={styles.tabIcon}>🎙️</Text>
-          <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>
-            New Note
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'saved' && styles.activeTab]}
-          onPress={() => setActiveTab('saved')}
-        >
-          <Text style={styles.tabIcon}>💾</Text>
-          <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>
-            Saved Notes
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* Bottom Tab Bar - Hide on Patient History screen */}
+      {activeScreen !== 'patient-history' && (
+        <View style={styles.tabBar}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'transcription' && styles.activeTab]}
+            onPress={() => {
+              setActiveTab('transcription');
+              setActiveScreen('transcription');
+            }}
+          >
+            <Text style={styles.tabIcon}>🎙️</Text>
+            <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>
+              New Note
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'saved' && styles.activeTab]}
+            onPress={goToSavedNotes}
+          >
+            <Text style={styles.tabIcon}>💾</Text>
+            <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>
+              My Notes
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
       
       <StatusBar style="auto" />
     </View>
@@ -156,13 +213,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginBottom: 80, // Make room for tab bar
   },
   tabBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     backgroundColor: '#ffffff',
     borderTopWidth: 1,

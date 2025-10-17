@@ -225,12 +225,7 @@ export default function AuthScreen({ navigation }) {
           </View>
 
           {/* Demo Credentials (for testing) */}
-          {isLogin && (
-            <View style={styles.demoContainer}>
-              <Text style={styles.demoText}>Demo Credentials:</Text>
-              <Text style={styles.demoCredentials}>doctor@test.com / Test123456</Text>
-            </View>
-          )}
+          {isLogin}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

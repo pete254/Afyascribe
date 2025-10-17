@@ -184,7 +184,7 @@ export default function SavedNotesScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>💾 Saved Notes</Text>
+          <Text style={styles.title}>📝 My Notes</Text>
           <Text style={styles.subtitle}>Loading...</Text>
         </View>
         <View style={styles.loadingContainer}>

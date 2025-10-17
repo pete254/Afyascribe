@@ -1,4 +1,4 @@
-// src/screens/TranscriptionScreen.js - Updated to use soapFormatter
+// src/screens/TranscriptionScreen.js - Complete Updated Version
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,8 +13,12 @@ import { useAudioRecording } from '../hooks/useAudioRecording';
 import SoapSectionInput from '../components/SoapSectionInput';
 import PatientSearchBar from '../components/PatientSearchBar';
 
-export default function TranscriptionScreen() {
-  const [selectedPatient, setSelectedPatient] = useState(null);
+export default function TranscriptionScreen({ 
+  preselectedPatient, 
+  onViewPatientHistory,
+  onClearPatient 
+}) {
+  const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
   
   const [symptoms, setSymptoms] = useState('');
   const [physicalExamination, setPhysicalExamination] = useState('');
@@ -47,6 +51,13 @@ export default function TranscriptionScreen() {
     toggleRecording,
     clearTranscription,
   } = useAudioRecording();
+
+  // Update selected patient when prop changes
+  useEffect(() => {
+    if (preselectedPatient) {
+      setSelectedPatient(preselectedPatient);
+    }
+  }, [preselectedPatient]);
 
   // Handle transcription completion
   useEffect(() => {
@@ -111,7 +122,6 @@ export default function TranscriptionScreen() {
     }
   };
 
-  // ✅ UPDATED: Now uses formatSoapSection from soapFormatter.js
   const handleFormatSection = async (sectionTitle, sectionText, setSectionText) => {
     if (!sectionText.trim()) {
       Alert.alert('Error', `Please add some text to ${sectionTitle} before formatting`);
@@ -122,7 +132,6 @@ export default function TranscriptionScreen() {
     setFormatingSections((prev) => ({ ...prev, [sectionKey]: true }));
 
     try {
-      // ✅ Use the centralized soapFormatter function
       const { formatSoapSection } = require('../services/soapFormatter');
       
       console.log(`🔄 Formatting ${sectionTitle}...`);
@@ -130,15 +139,12 @@ export default function TranscriptionScreen() {
       
       if (formatted && formatted.trim()) {
         setSectionText(formatted);
-        // ✅ No success alert - just silently update the text
         console.log(`✅ ${sectionTitle} formatted successfully`);
       } else {
-        // ✅ No warning alert - just keep original text
         console.log(`⚠️ Formatting returned empty for ${sectionTitle}`);
       }
     } catch (error) {
       console.error(`❌ Format error for ${sectionTitle}:`, error);
-      // ⚠️ Keep error alert for actual failures (optional - you can remove this too)
       Alert.alert('Error', `Failed to format: ${error.message}`);
     } finally {
       setFormatingSections((prev) => ({ ...prev, [sectionKey]: false }));
@@ -173,6 +179,17 @@ export default function TranscriptionScreen() {
     if (title.includes('Diagnosis')) return 'diagnosis';
     if (title.includes('Management')) return 'management';
     return '';
+  };
+
+  const handlePatientSelect = (patient) => {
+    setSelectedPatient(patient);
+  };
+
+  const handleClearPatient = () => {
+    setSelectedPatient(null);
+    if (onClearPatient) {
+      onClearPatient();
+    }
   };
 
   const handleSaveAll = async () => {
@@ -232,10 +249,30 @@ export default function TranscriptionScreen() {
       id: 'patient-search',
       type: 'patient-search',
       component: (
-        <PatientSearchBar
-          selectedPatient={selectedPatient}
-          onPatientSelect={setSelectedPatient}
-        />
+        <>
+          <PatientSearchBar
+            selectedPatient={selectedPatient}
+            onPatientSelect={handlePatientSelect}
+          />
+          
+          {/* 🆕 NEW: View Patient History Button */}
+          {selectedPatient && (
+            <View style={styles.patientHistoryBanner}>
+              <View style={styles.patientHistoryInfo}>
+                <Text style={styles.patientHistoryLabel}>📋 Patient Selected</Text>
+                <Text style={styles.patientHistoryHint}>
+                  View previous notes before adding new ones
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.viewHistoryButton}
+                onPress={() => onViewPatientHistory && onViewPatientHistory(selectedPatient)}
+              >
+                <Text style={styles.viewHistoryButtonText}>View History →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
       ),
     },
     {
@@ -399,6 +436,47 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
+  // 🆕 NEW: Patient History Banner Styles
+  patientHistoryBanner: {
+    backgroundColor: '#dbeafe',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+  },
+  patientHistoryInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  patientHistoryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e40af',
+    marginBottom: 4,
+  },
+  patientHistoryHint: {
+    fontSize: 12,
+    color: '#3b82f6',
+    lineHeight: 16,
+  },
+  viewHistoryButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  viewHistoryButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Existing styles
   recordingBanner: {
     backgroundColor: '#ef4444',
     flexDirection: 'row',
