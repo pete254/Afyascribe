@@ -1,4 +1,4 @@
-// App.js - Updated with Patient History
+// App.js - Updated with Edit Note Support
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
@@ -18,8 +18,9 @@ const Stack = createNativeStackNavigator();
 function MainApp() {
   const { isAuthenticated, loading, logout, user } = useAuth();
   const [activeTab, setActiveTab] = useState('transcription');
-  const [activeScreen, setActiveScreen] = useState('transcription'); // 'transcription', 'saved', 'patient-history'
+  const [activeScreen, setActiveScreen] = useState('transcription');
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [noteToEdit, setNoteToEdit] = useState(null); // 🆕 NEW: Note being edited
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -58,6 +59,15 @@ function MainApp() {
     setActiveTab('transcription');
   };
 
+  // 🆕 NEW: Edit note with voice
+  const editNoteWithVoice = (note) => {
+    console.log('✏️ Editing note with voice:', note.id);
+    setNoteToEdit(note);
+    setSelectedPatient(note.patient);
+    setActiveScreen('transcription');
+    setActiveTab('transcription');
+  };
+
   const goToSavedNotes = () => {
     setActiveScreen('saved');
     setActiveTab('saved');
@@ -66,6 +76,12 @@ function MainApp() {
   const goBack = () => {
     setActiveScreen(activeTab);
     setSelectedPatient(null);
+    setNoteToEdit(null); // 🆕 Clear edit mode
+  };
+
+  // 🆕 NEW: Clear edit mode
+  const clearEditMode = () => {
+    setNoteToEdit(null);
   };
 
   // Render active screen
@@ -77,12 +93,14 @@ function MainApp() {
             patient={selectedPatient}
             onBack={goBack}
             onAddNewNote={goToTranscription}
+            onEditWithVoice={editNoteWithVoice} // 🆕 NEW
           />
         );
       case 'saved':
         return (
           <SavedNotesScreen
             onViewPatientHistory={goToPatientHistory}
+            onEditWithVoice={editNoteWithVoice} // 🆕 NEW
           />
         );
       case 'transcription':
@@ -90,8 +108,10 @@ function MainApp() {
         return (
           <TranscriptionScreen
             preselectedPatient={selectedPatient}
+            noteToEdit={noteToEdit} // 🆕 NEW
             onViewPatientHistory={goToPatientHistory}
             onClearPatient={() => setSelectedPatient(null)}
+            onClearNote={clearEditMode} // 🆕 NEW
           />
         );
     }
@@ -129,6 +149,7 @@ function MainApp() {
             onPress={() => {
               setActiveTab('transcription');
               setActiveScreen('transcription');
+              setNoteToEdit(null); // Clear edit mode when switching tabs
             }}
           >
             <Text style={styles.tabIcon}>🎙️</Text>

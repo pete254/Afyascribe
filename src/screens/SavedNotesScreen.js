@@ -1,4 +1,4 @@
-// src/screens/SavedNotesScreen.js - Using Backend API
+// src/screens/SavedNotesScreen.js - With Edit with Voice Button
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import apiService from '../services/apiService';
 
-export default function SavedNotesScreen() {
+export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice }) {
   const [savedNotes, setSavedNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,14 +29,11 @@ export default function SavedNotesScreen() {
       setError(null);
       console.log('Loading SOAP notes from backend...');
       
-      // Get notes from backend API
       const response = await apiService.getSoapNotes();
       console.log('Backend response:', response);
       
-      // The backend returns paginated data
       const notes = response.data || response || [];
       
-      // Transform backend data to match UI format
       const transformedNotes = notes.map(note => ({
         id: note.id,
         patientName: note.patient ? `${note.patient.firstName} ${note.patient.lastName}` : 'Unknown Patient',
@@ -50,11 +47,15 @@ export default function SavedNotesScreen() {
         diagnosis: note.diagnosis || '',
         management: note.management || '',
         
-        // Combined view (for preview)
+        // Combined view
         soapNotes: formatSoapPreview(note),
         
         status: note.status || 'pending',
         createdBy: note.createdBy || {},
+        patient: note.patient, // 🆕 Keep full patient object for editing
+        
+        // 🆕 Keep full note for editing
+        fullNote: note,
       }));
 
       setSavedNotes(transformedNotes);
@@ -115,7 +116,6 @@ export default function SavedNotesScreen() {
               console.log('🗑️ Deleting note:', id);
               await apiService.deleteSoapNote(id);
               
-              // Remove from local state
               setSavedNotes(prev => prev.filter(note => note.id !== id));
               
               Alert.alert('Success', 'Note deleted successfully');
@@ -130,7 +130,6 @@ export default function SavedNotesScreen() {
   };
 
   const handleViewNote = (note) => {
-    // Show full SOAP note details
     Alert.alert(
       `${note.patientName} - SOAP Note`,
       note.soapNotes,
@@ -160,20 +159,35 @@ export default function SavedNotesScreen() {
         </Text>
       </ScrollView>
 
-      {/* Actions */}
+      {/* Action Buttons */}
       <View style={styles.actionButtons}>
+        {/* 🆕 NEW: Edit with Voice Button */}
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.voiceEditButton]}
+          onPress={() => onEditWithVoice && onEditWithVoice(item.fullNote)}
+        >
+          <Text style={styles.actionButtonText}>🎙️ Edit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.historyButton]}
+          onPress={() => onViewPatientHistory && onViewPatientHistory(item.patient)}
+        >
+          <Text style={styles.actionButtonText}>📋 History</Text>
+        </TouchableOpacity>
+        
         <TouchableOpacity 
           style={[styles.actionButton, styles.viewButton]}
           onPress={() => handleViewNote(item)}
         >
-          <Text style={styles.actionButtonText}>👁️ View Full</Text>
+          <Text style={styles.actionButtonText}>👁️ View</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.actionButton, styles.deleteButton]}
           onPress={() => handleDeleteNote(item.id)}
         >
-          <Text style={styles.actionButtonText}>🗑️ Delete</Text>
+          <Text style={styles.actionButtonText}>🗑️</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -200,7 +214,7 @@ export default function SavedNotesScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>💾 Saved Notes</Text>
+          <Text style={styles.title}>📝 My Notes</Text>
           <Text style={styles.subtitle}>Error</Text>
         </View>
         <View style={styles.errorContainer}>
@@ -218,7 +232,7 @@ export default function SavedNotesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>💾 Saved Notes</Text>
+        <Text style={styles.title}>📝 My Notes</Text>
         <Text style={styles.subtitle}>
           {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''}
         </Text>
@@ -388,23 +402,30 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   actionButton: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  voiceEditButton: {
+    backgroundColor: '#8b5cf6', // Purple for voice edit
+  },
+  historyButton: {
+    backgroundColor: '#3b82f6',
   },
   viewButton: {
     backgroundColor: '#0f766e',
   },
   deleteButton: {
     backgroundColor: '#ef4444',
+    flex: 0.5, // Smaller delete button
   },
   actionButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   emptyState: {

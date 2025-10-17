@@ -1,4 +1,4 @@
-// src/screens/TranscriptionScreen.js - Complete Updated Version
+// src/screens/TranscriptionScreen.js - Complete with Edit Mode
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -15,10 +15,14 @@ import PatientSearchBar from '../components/PatientSearchBar';
 
 export default function TranscriptionScreen({ 
   preselectedPatient, 
+  noteToEdit,  // 🆕 NEW: Note to edit
   onViewPatientHistory,
-  onClearPatient 
+  onClearPatient,
+  onClearNote,  // 🆕 NEW: Clear edit mode
 }) {
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
+  const [editMode, setEditMode] = useState(false);
+  const [noteId, setNoteId] = useState(null);
   
   const [symptoms, setSymptoms] = useState('');
   const [physicalExamination, setPhysicalExamination] = useState('');
@@ -51,6 +55,20 @@ export default function TranscriptionScreen({
     toggleRecording,
     clearTranscription,
   } = useAudioRecording();
+
+  // 🆕 NEW: Load note for editing
+  useEffect(() => {
+    if (noteToEdit) {
+      console.log('📝 Loading note for editing:', noteToEdit);
+      setEditMode(true);
+      setNoteId(noteToEdit.id);
+      setSelectedPatient(noteToEdit.patient);
+      setSymptoms(noteToEdit.symptoms || '');
+      setPhysicalExamination(noteToEdit.physicalExamination || '');
+      setDiagnosis(noteToEdit.diagnosis || '');
+      setManagement(noteToEdit.management || '');
+    }
+  }, [noteToEdit]);
 
   // Update selected patient when prop changes
   useEffect(() => {
@@ -192,6 +210,32 @@ export default function TranscriptionScreen({
     }
   };
 
+  // 🆕 NEW: Cancel edit mode
+  const handleCancelEdit = () => {
+    Alert.alert(
+      'Cancel Editing',
+      'Are you sure? Any unsaved changes will be lost.',
+      [
+        { text: 'Keep Editing', style: 'cancel' },
+        {
+          text: 'Cancel',
+          style: 'destructive',
+          onPress: () => {
+            setEditMode(false);
+            setNoteId(null);
+            setSymptoms('');
+            setPhysicalExamination('');
+            setDiagnosis('');
+            setManagement('');
+            if (onClearNote) {
+              onClearNote();
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSaveAll = async () => {
     if (!selectedPatient) {
       Alert.alert('Error', 'Please select a patient first');
@@ -209,34 +253,65 @@ export default function TranscriptionScreen({
       const apiService = require('../services/apiService').default;
       
       const soapNoteData = {
-        patientId: selectedPatient.id,
         symptoms: symptoms.trim(),
         physicalExamination: physicalExamination.trim(),
         diagnosis: diagnosis.trim(),
         management: management.trim(),
       };
 
-      console.log('💾 Saving SOAP note:', soapNoteData);
-      
-      await apiService.createSoapNote(soapNoteData);
-      
-      Alert.alert(
-        'Success',
-        'SOAP note saved successfully!',
-        [
-          {
-            text: 'New Note',
-            onPress: () => {
-              setSymptoms('');
-              setPhysicalExamination('');
-              setDiagnosis('');
-              setManagement('');
-              setSelectedPatient(null);
+      if (editMode && noteId) {
+        // 🆕 UPDATE existing note with history tracking
+        console.log('💾 Updating SOAP note:', noteId);
+        await apiService.editSoapNoteWithHistory(noteId, soapNoteData);
+        
+        Alert.alert(
+          'Success',
+          'Note updated successfully!',
+          [
+            {
+              text: 'Done',
+              onPress: () => {
+                setEditMode(false);
+                setNoteId(null);
+                setSymptoms('');
+                setPhysicalExamination('');
+                setDiagnosis('');
+                setManagement('');
+                if (onClearNote) {
+                  onClearNote();
+                }
+              },
             },
-          },
-          { text: 'OK' },
-        ]
-      );
+          ]
+        );
+      } else {
+        // CREATE new note
+        console.log('💾 Creating new SOAP note');
+        const fullData = {
+          patientId: selectedPatient.id,
+          ...soapNoteData,
+        };
+        
+        await apiService.createSoapNote(fullData);
+        
+        Alert.alert(
+          'Success',
+          'SOAP note saved successfully!',
+          [
+            {
+              text: 'New Note',
+              onPress: () => {
+                setSymptoms('');
+                setPhysicalExamination('');
+                setDiagnosis('');
+                setManagement('');
+                setSelectedPatient(null);
+              },
+            },
+            { text: 'OK' },
+          ]
+        );
+      }
     } catch (error) {
       Alert.alert('Error', `Failed to save: ${error.message}`);
     } finally {
@@ -245,31 +320,67 @@ export default function TranscriptionScreen({
   };
 
   const sections = [
+    // 🆕 NEW: Edit mode banner
+    ...(editMode ? [{
+      id: 'edit-mode-banner',
+      type: 'edit-banner',
+      component: (
+        <View style={styles.editModeBanner}>
+          <View style={styles.editModeInfo}>
+            <Text style={styles.editModeLabel}>✏️ Editing Note</Text>
+            <Text style={styles.editModeHint}>
+              Use voice or text to update this note
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.cancelEditButton}
+            onPress={handleCancelEdit}
+          >
+            <Text style={styles.cancelEditButtonText}>✕ Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      ),
+    }] : []),
     {
       id: 'patient-search',
       type: 'patient-search',
       component: (
         <>
-          <PatientSearchBar
-            selectedPatient={selectedPatient}
-            onPatientSelect={handlePatientSelect}
-          />
+          {/* Hide search bar in edit mode */}
+          {!editMode && (
+            <>
+              <PatientSearchBar
+                selectedPatient={selectedPatient}
+                onPatientSelect={handlePatientSelect}
+              />
+              
+              {selectedPatient && (
+                <View style={styles.patientHistoryBanner}>
+                  <View style={styles.patientHistoryInfo}>
+                    <Text style={styles.patientHistoryLabel}>📋 Patient Selected</Text>
+                    <Text style={styles.patientHistoryHint}>
+                      View previous notes before adding new ones
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.viewHistoryButton}
+                    onPress={() => onViewPatientHistory && onViewPatientHistory(selectedPatient)}
+                  >
+                    <Text style={styles.viewHistoryButtonText}>View History →</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
           
-          {/* 🆕 NEW: View Patient History Button */}
-          {selectedPatient && (
-            <View style={styles.patientHistoryBanner}>
-              <View style={styles.patientHistoryInfo}>
-                <Text style={styles.patientHistoryLabel}>📋 Patient Selected</Text>
-                <Text style={styles.patientHistoryHint}>
-                  View previous notes before adding new ones
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.viewHistoryButton}
-                onPress={() => onViewPatientHistory && onViewPatientHistory(selectedPatient)}
-              >
-                <Text style={styles.viewHistoryButtonText}>View History →</Text>
-              </TouchableOpacity>
+          {/* Show patient info in edit mode */}
+          {editMode && selectedPatient && (
+            <View style={styles.editPatientInfo}>
+              <Text style={styles.editPatientLabel}>Patient:</Text>
+              <Text style={styles.editPatientName}>
+                {selectedPatient.firstName} {selectedPatient.lastName}
+              </Text>
+              <Text style={styles.editPatientId}>ID: {selectedPatient.patientId}</Text>
             </View>
           )}
         </>
@@ -386,7 +497,9 @@ export default function TranscriptionScreen({
           {isSaving ? (
             <ActivityIndicator color="#ffffff" size="small" />
           ) : (
-            <Text style={styles.saveButtonText}>💾 Save All Sections</Text>
+            <Text style={styles.saveButtonText}>
+              {editMode ? '💾 Update Note' : '💾 Save All Sections'}
+            </Text>
           )}
         </TouchableOpacity>
       ),
@@ -397,7 +510,9 @@ export default function TranscriptionScreen({
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.appName}>Afyascribe</Text>
-        <Text style={styles.tagline}>Medical Transcription</Text>
+        <Text style={styles.tagline}>
+          {editMode ? 'Edit Note with Voice' : 'Medical Transcription'}
+        </Text>
       </View>
 
       <FlatList
@@ -436,7 +551,74 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
-  // 🆕 NEW: Patient History Banner Styles
+  // 🆕 NEW: Edit mode banner
+  editModeBanner: {
+    backgroundColor: '#fef3c7',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+  },
+  editModeInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  editModeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  editModeHint: {
+    fontSize: 12,
+    color: '#d97706',
+    lineHeight: 16,
+  },
+  cancelEditButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  cancelEditButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Edit mode patient info
+  editPatientInfo: {
+    backgroundColor: '#f3f4f6',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  editPatientLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  editPatientName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  editPatientId: {
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  // Patient History Banner
   patientHistoryBanner: {
     backgroundColor: '#dbeafe',
     marginHorizontal: 16,
@@ -476,7 +658,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // Existing styles
+  // Recording banner
   recordingBanner: {
     backgroundColor: '#ef4444',
     flexDirection: 'row',
