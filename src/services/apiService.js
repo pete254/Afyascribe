@@ -1,7 +1,10 @@
 // src/services/apiService.js - Complete Updated Version
 import storage from '../utils/storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+// ✅ FIXED: Changed fallback from localhost to Render URL
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://afyascribe-backend.onrender.com';
+
+console.log('🌐 API Service initialized with URL:', API_URL);
 
 /**
  * API Service for backend communication
@@ -29,7 +32,7 @@ class ApiService {
         headers,
       };
 
-      console.log(`API Request: ${options.method || 'GET'} ${API_URL}${endpoint}`);
+      console.log(`📡 API Request: ${options.method || 'GET'} ${API_URL}${endpoint}`);
       
       const response = await fetch(`${API_URL}${endpoint}`, config);
       
@@ -44,9 +47,10 @@ class ApiService {
         throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
+      console.log(`✅ API Success: ${endpoint}`);
       return data;
     } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
+      console.error(`❌ API Error (${endpoint}):`, error);
       throw error;
     }
   }
@@ -221,17 +225,17 @@ class ApiService {
     return await this.request('/soap-notes/statistics');
   }
 
-  // ==================== 🆕 NEW: PATIENT HISTORY ENDPOINTS ====================
+  // ==================== PATIENT HISTORY ENDPOINTS ====================
 
   /**
-   * 🆕 NEW: Get all SOAP notes for a specific patient
+   * Get all SOAP notes for a specific patient
    */
   async getPatientHistory(patientId) {
     return await this.request(`/soap-notes/patient/${patientId}`);
   }
 
   /**
-   * 🆕 NEW: Edit a SOAP note with history tracking
+   * Edit a SOAP note with history tracking
    */
   async editSoapNoteWithHistory(noteId, updateData) {
     return await this.request(`/soap-notes/${noteId}/edit`, {
