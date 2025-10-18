@@ -1,3 +1,4 @@
+// src/services/AudioService.js - Updated to use Groq for transcription
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
@@ -12,11 +13,11 @@ class AudioService {
    this.durationInterval = null;
    this.currentTranscript = '';
   
-   // OpenAI Whisper Configuration
-   this.API_KEY = Constants.expoConfig?.extra?.OPENAI_API_KEY || process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+   // 🔄 CHANGED: Groq API Configuration
+   this.API_KEY = Constants.expoConfig?.extra?.GROQ_API_KEY || process.env.EXPO_PUBLIC_GROQ_API_KEY;
   
    if (!this.API_KEY) {
-     console.warn('OpenAI API key not found. Please set EXPO_PUBLIC_OPENAI_API_KEY in your environment.');
+     console.warn('⚠️ Groq API key not found. Please set EXPO_PUBLIC_GROQ_API_KEY in your environment.');
    }
  }
 
@@ -162,13 +163,13 @@ class AudioService {
          // Start transcription process
          try {
            this.isTranscribing = true;
-           console.log('Starting Whisper transcription...');
+           console.log('🚀 Starting Groq Whisper transcription...');
           
            const transcriptionResult = await this.transcribeAudio(uri);
           
            if (transcriptionResult.success && transcriptionResult.transcription) {
              this.currentTranscript = transcriptionResult.transcription;
-             console.log('Transcription completed:', this.currentTranscript);
+             console.log('✅ Transcription completed:', this.currentTranscript);
             
              return {
                success: true,
@@ -176,7 +177,7 @@ class AudioService {
                transcript: this.currentTranscript
              };
            } else {
-             console.log('No transcription received or transcription failed');
+             console.log('⚠️ No transcription received or transcription failed');
              return {
                success: true,
                uri,
@@ -185,7 +186,7 @@ class AudioService {
              };
            }
          } catch (transcriptionError) {
-           console.error('Transcription error:', transcriptionError);
+           console.error('❌ Transcription error:', transcriptionError);
            return {
              success: true,
              uri,
@@ -208,13 +209,14 @@ class AudioService {
  }
 
 
+ // 🔄 CHANGED: Using Groq API for transcription
  async transcribeAudio(audioUri) {
    try {
-     console.log('Starting Whisper API transcription...');
+     console.log('🚀 Starting Groq Whisper API transcription...');
 
 
      if (!this.API_KEY) {
-       throw new Error('OpenAI API key not configured');
+       throw new Error('Groq API key not configured');
      }
 
 
@@ -225,10 +227,10 @@ class AudioService {
      }
 
 
-     console.log('Audio file info:', audioInfo);
+     console.log('📁 Audio file info:', audioInfo);
 
 
-     // Create FormData for Whisper API
+     // Create FormData for Groq API
      const formData = new FormData();
     
      // Append the audio file
@@ -238,8 +240,9 @@ class AudioService {
        name: 'recording.m4a',
      });
     
-     // Whisper model (only whisper-1 is available)
-     formData.append('model', 'whisper-1');
+     // 🔄 CHANGED: Use Groq's Whisper model
+     // Available models: whisper-large-v3, whisper-large-v3-turbo
+     formData.append('model', 'whisper-large-v3-turbo'); // Faster variant
     
      // Language (optional, but helps accuracy)
      formData.append('language', 'en');
@@ -247,14 +250,15 @@ class AudioService {
      // Prompt to guide transcription (helps with medical terminology)
      formData.append('prompt', 'Medical consultation with patient. Include medical terminology, SOAP notes format, symptoms, diagnosis, assessment, and treatment plan details.');
     
-     // Response format (text is default, but you can use json, srt, verbose_json, or vtt)
+     // Response format (text is default)
      formData.append('response_format', 'text');
 
 
-     console.log('Sending request to Whisper API...');
+     console.log('📤 Sending request to Groq Whisper API...');
 
 
-     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+     // 🔄 CHANGED: Groq API endpoint
+     const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
        method: 'POST',
        headers: {
          'Authorization': `Bearer ${this.API_KEY}`,
@@ -266,16 +270,16 @@ class AudioService {
 
      if (!response.ok) {
        const errorText = await response.text();
-       console.error('Whisper API error response:', errorText);
-       throw new Error(`Whisper API request failed: ${response.status} - ${errorText}`);
+       console.error('❌ Groq API error response:', errorText);
+       throw new Error(`Groq API request failed: ${response.status} - ${errorText}`);
      }
 
 
      // Response is plain text when response_format is 'text'
      const transcriptionText = await response.text();
     
-     console.log('Whisper transcription completed successfully');
-     console.log('Transcribed text:', transcriptionText);
+     console.log('✅ Groq transcription completed successfully');
+     console.log('📝 Transcribed text:', transcriptionText);
 
 
      return {
@@ -285,7 +289,7 @@ class AudioService {
 
 
    } catch (error) {
-     console.error('Whisper transcription failed:', error);
+     console.error('❌ Groq transcription failed:', error);
      throw error;
    }
  }
