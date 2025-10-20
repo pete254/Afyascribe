@@ -1,12 +1,38 @@
 // src/services/geminiClient.js
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+import Constants from 'expo-constants';
+
+// 🔍 DIAGNOSTIC: Check all possible sources for API key
+console.log('🔍 ========== GEMINI API KEY DIAGNOSTIC ==========');
+console.log('1. Constants.expoConfig?.extra:', Constants.expoConfig?.extra);
+console.log('2. process.env.EXPO_PUBLIC_GEMINI_API_KEY:', process.env.EXPO_PUBLIC_GEMINI_API_KEY ? 'EXISTS' : 'MISSING');
+
+// ✅ FIXED: Read from multiple sources (same pattern as AudioService)
+const GEMINI_API_KEY = 
+  Constants.expoConfig?.extra?.GEMINI_API_KEY ||       // EAS builds
+  Constants.manifest?.extra?.GEMINI_API_KEY ||         // Legacy
+  Constants.manifest2?.extra?.GEMINI_API_KEY ||        // Legacy
+  process.env.EXPO_PUBLIC_GEMINI_API_KEY;              // Local dev
+
+console.log('3. Final GEMINI_API_KEY:', GEMINI_API_KEY ? `${GEMINI_API_KEY.substring(0, 10)}...` : 'NOT FOUND');
+console.log('====================================================');
+
+if (!GEMINI_API_KEY) {
+  console.error('❌ CRITICAL: Gemini API key not found in any location!');
+  console.error('📋 Checklist:');
+  console.error('   1. Check app.json has GEMINI_API_KEY in extra section');
+  console.error('   2. For local dev: Check .env has EXPO_PUBLIC_GEMINI_API_KEY');
+  console.error('   3. For builds: Check EAS secrets with `eas secret:list`');
+  console.error('   4. Restart dev server with `npx expo start -c`');
+} else {
+  console.log('✅ Gemini API key loaded successfully');
+}
 
 // Updated to use Gemini 2.5 Flash (current stable model)
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 export async function testGemini() {
   if (!GEMINI_API_KEY) {
-    throw new Error("Missing Gemini API key. Please set EXPO_PUBLIC_GEMINI_API_KEY in your .env file.");
+    throw new Error("Missing Gemini API key. Please add GEMINI_API_KEY to app.json extra section or EXPO_PUBLIC_GEMINI_API_KEY to .env file.");
   }
 
   const url = `${GEMINI_BASE_URL}?key=${GEMINI_API_KEY}`;
@@ -67,6 +93,9 @@ export async function chatWithGemini(message, conversationHistory = []) {
 
   const url = `${GEMINI_BASE_URL}?key=${GEMINI_API_KEY}`;
   
+  console.log('🤖 Calling Gemini for formatting...');
+  console.log('🔑 Using API key:', GEMINI_API_KEY.substring(0, 10) + '...');
+  
   // Build conversation history
   const contents = [
     ...conversationHistory,
@@ -96,11 +125,15 @@ export async function chatWithGemini(message, conversationHistory = []) {
 
     if (!res.ok) {
       const errorText = await res.text();
+      console.error('❌ Gemini API error response:', errorText);
       throw new Error(`Gemini ${res.status}: ${errorText}`);
     }
     
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
+    const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
+    
+    console.log('✅ Gemini formatting completed');
+    return result;
   } catch (error) {
     console.error("Chat with Gemini Error:", error);
     throw error;

@@ -47,7 +47,6 @@
       "expo-asset"
     ],
     "extra": {
-      "API_URL": "https://afyascribe-backend.onrender.com",
       "eas": {
         "projectId": "c79385f9-1355-40b4-bead-d87ccb9032a0"
       }

@@ -1,8 +1,22 @@
-// src/services/apiService.js - Complete Updated Version
+// src/services/apiService.js
 import storage from '../utils/storage';
+import Constants from 'expo-constants';
 
-// ✅ FIXED: Changed fallback from localhost to Render URL
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://afyascribe-backend.onrender.com';
+// 🔍 DIAGNOSTIC: Check all possible sources for API URL
+console.log('🔍 ========== API_URL DIAGNOSTIC ==========');
+console.log('1. Constants.expoConfig?.extra:', Constants.expoConfig?.extra);
+console.log('2. process.env.EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL ? 'EXISTS' : 'MISSING');
+
+// ✅ FIXED: Read from multiple sources (same pattern as other services)
+const API_URL = 
+  Constants.expoConfig?.extra?.API_URL ||                  // EAS builds
+  Constants.manifest?.extra?.API_URL ||                    // Legacy
+  Constants.manifest2?.extra?.API_URL ||                   // Legacy
+  process.env.EXPO_PUBLIC_API_URL ||                       // Local dev
+  'https://afyascribe-backend.onrender.com';               // Fallback
+
+console.log('3. Final API_URL:', API_URL);
+console.log('==========================================');
 
 console.log('🌐 API Service initialized with URL:', API_URL);
 
@@ -22,7 +36,6 @@ class ApiService {
         ...options.headers,
       };
 
-      // Add authorization header if token exists
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -36,7 +49,6 @@ class ApiService {
       
       const response = await fetch(`${API_URL}${endpoint}`, config);
       
-      // Handle different response types
       if (response.status === 204) {
         return { success: true };
       }
@@ -57,16 +69,12 @@ class ApiService {
 
   // ==================== AUTH ENDPOINTS ====================
 
-  /**
-   * Login user
-   */
   async login(email, password) {
     const data = await this.request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
 
-    // Save token and user data
     if (data.access_token) {
       await storage.saveToken(data.access_token);
       await storage.saveUser(data.user);
@@ -75,9 +83,6 @@ class ApiService {
     return data;
   }
 
-  /**
-   * Register new user
-   */
   async register(userData) {
     const data = await this.request('/auth/register', {
       method: 'POST',
@@ -87,16 +92,10 @@ class ApiService {
     return data;
   }
 
-  /**
-   * Logout user
-   */
   async logout() {
     await storage.clearAll();
   }
 
-  /**
-   * Forgot Password - Request password reset
-   */
   async forgotPassword(email) {
     const data = await this.request('/auth/forgot-password', {
       method: 'POST',
@@ -106,9 +105,6 @@ class ApiService {
     return data;
   }
 
-  /**
-   * Reset Password - Reset password with token
-   */
   async resetPassword(token, newPassword) {
     const data = await this.request('/auth/reset-password', {
       method: 'POST',
@@ -120,9 +116,6 @@ class ApiService {
 
   // ==================== PATIENT ENDPOINTS ====================
 
-  /**
-   * Search patients by name or ID
-   */
   async searchPatients(query) {
     if (!query || query.trim().length < 2) {
       return [];
@@ -130,32 +123,20 @@ class ApiService {
     return await this.request(`/patients/search?q=${encodeURIComponent(query)}`);
   }
 
-  /**
-   * Get recently registered patients
-   */
   async getRecentPatients(limit = 10) {
     return await this.request(`/patients/recent?limit=${limit}`);
   }
 
-  /**
-   * Get all patients (paginated)
-   */
   async getAllPatients(page = 1, limit = 20) {
     return await this.request(`/patients?page=${page}&limit=${limit}`);
   }
 
-  /**
-   * Get patient by ID
-   */
   async getPatient(id) {
     return await this.request(`/patients/${id}`);
   }
 
   // ==================== SOAP NOTES ENDPOINTS ====================
 
-  /**
-   * Create new SOAP note
-   */
   async createSoapNote(noteData) {
     return await this.request('/soap-notes', {
       method: 'POST',
@@ -163,9 +144,6 @@ class ApiService {
     });
   }
 
-  /**
-   * Get all SOAP notes (paginated and filtered)
-   */
   async getSoapNotes(params = {}) {
     const queryParams = new URLSearchParams();
     
@@ -182,16 +160,10 @@ class ApiService {
     return await this.request(endpoint);
   }
 
-  /**
-   * Get single SOAP note by ID
-   */
   async getSoapNote(id) {
     return await this.request(`/soap-notes/${id}`);
   }
 
-  /**
-   * Update SOAP note
-   */
   async updateSoapNote(id, updateData) {
     return await this.request(`/soap-notes/${id}`, {
       method: 'PATCH',
@@ -199,9 +171,6 @@ class ApiService {
     });
   }
 
-  /**
-   * Update SOAP note status
-   */
   async updateSoapNoteStatus(id, status) {
     return await this.request(`/soap-notes/${id}/status`, {
       method: 'PATCH',
@@ -209,34 +178,20 @@ class ApiService {
     });
   }
 
-  /**
-   * Delete SOAP note
-   */
   async deleteSoapNote(id) {
     return await this.request(`/soap-notes/${id}`, {
       method: 'DELETE',
     });
   }
 
-  /**
-   * Get SOAP notes statistics
-   */
   async getSoapNotesStatistics() {
     return await this.request('/soap-notes/statistics');
   }
 
-  // ==================== PATIENT HISTORY ENDPOINTS ====================
-
-  /**
-   * Get all SOAP notes for a specific patient
-   */
   async getPatientHistory(patientId) {
     return await this.request(`/soap-notes/patient/${patientId}`);
   }
 
-  /**
-   * Edit a SOAP note with history tracking
-   */
   async editSoapNoteWithHistory(noteId, updateData) {
     return await this.request(`/soap-notes/${noteId}/edit`, {
       method: 'PATCH',
