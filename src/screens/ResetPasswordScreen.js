@@ -1,5 +1,5 @@
-// src/screens/ResetPasswordScreen.js
-import React, { useState } from 'react';
+// src/screens/ResetPasswordScreen.js - UPDATED WITH TOKEN INPUT
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,19 +12,68 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 import apiService from '../services/apiService';
 
 export default function ResetPasswordScreen({ route, navigation }) {
-  const { token } = route.params || {};
+  // Get token from route params (if navigated from ForgotPassword success screen)
+  const { token: routeToken } = route.params || {};
   
+  // State
+  const [token, setToken] = useState(routeToken || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [manualTokenEntry, setManualTokenEntry] = useState(!routeToken);
+
+  // Listen for deep links
+  useEffect(() => {
+    const handleDeepLink = (event) => {
+      const url = event.url;
+      console.log('🔗 Deep link received:', url);
+      
+      // Parse URL: afyascribe://reset-password?token=xyz
+      if (url && url.includes('token=')) {
+        const urlToken = url.split('token=')[1].split('&')[0]; // Handle multiple params
+        if (urlToken) {
+          setToken(decodeURIComponent(urlToken));
+          setManualTokenEntry(false);
+          Alert.alert(
+            'Token Received',
+            'Your reset token has been filled automatically. Please enter your new password.',
+          );
+        }
+      }
+    };
+
+    // Subscribe to URL events (when app is already open)
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened with a URL (when app was closed)
+    Linking.getInitialURL().then((url) => {
+      if (url && url.includes('token=')) {
+        const urlToken = url.split('token=')[1].split('&')[0];
+        if (urlToken) {
+          setToken(decodeURIComponent(urlToken));
+          setManualTokenEntry(false);
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const handleResetPassword = async () => {
     // Validation
+    if (!token.trim()) {
+      Alert.alert('Error', 'Please enter your reset token');
+      return;
+    }
+
     if (!password.trim() || !confirmPassword.trim()) {
       Alert.alert('Error', 'Please enter and confirm your new password');
       return;
@@ -53,15 +102,10 @@ export default function ResetPasswordScreen({ route, navigation }) {
       return;
     }
 
-    if (!token) {
-      Alert.alert('Error', 'Invalid or missing reset token');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      await apiService.resetPassword(token, password);
+      await apiService.resetPassword(token.trim(), password);
       
       Alert.alert(
         'Success',
@@ -112,12 +156,44 @@ export default function ResetPasswordScreen({ route, navigation }) {
             <Text style={styles.icon}>🔑</Text>
             <Text style={styles.title}>Reset Password</Text>
             <Text style={styles.subtitle}>
-              Enter your new password below
+              {manualTokenEntry 
+                ? 'Enter your reset token and new password'
+                : 'Enter your new password below'
+              }
             </Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
+            {/* Token Input - Show if no token from deep link */}
+            {manualTokenEntry && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Reset Token</Text>
+                <TextInput
+                  style={[styles.tokenInput]}
+                  placeholder="Paste your reset token from email"
+                  value={token}
+                  onChangeText={setToken}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+                <Text style={styles.hint}>
+                  💡 Check your email for the reset token or click the link in your email
+                </Text>
+              </View>
+            )}
+
+            {/* Show token status if received via deep link */}
+            {!manualTokenEntry && token && (
+              <View style={styles.tokenReceivedBanner}>
+                <Text style={styles.tokenReceivedText}>✓ Reset token received from email link</Text>
+              </View>
+            )}
+
             {/* New Password */}
             <View style={styles.inputContainer}>
               <Text style={styles.label}>New Password</Text>
@@ -130,7 +206,7 @@ export default function ResetPasswordScreen({ route, navigation }) {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   editable={!loading}
-                  autoFocus
+                  autoFocus={!manualTokenEntry} // Only autofocus if token is already filled
                 />
                 <TouchableOpacity
                   style={styles.eyeIcon}
@@ -142,7 +218,7 @@ export default function ResetPasswordScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
               
-              {/* Password Strength Indicator */}
+              {/* Password strength indicator */}
               {passwordStrength && (
                 <View style={styles.strengthContainer}>
                   <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
@@ -151,20 +227,32 @@ export default function ResetPasswordScreen({ route, navigation }) {
                 </View>
               )}
 
-              {/* Password Requirements */}
+              {/* Password requirements */}
               <View style={styles.requirementsContainer}>
                 <Text style={styles.requirementsTitle}>Password must contain:</Text>
-                <Text style={[styles.requirement, password.length >= 8 && styles.requirementMet]}>
-                  • At least 8 characters {password.length >= 8 && '✓'}
+                <Text style={[
+                  styles.requirement,
+                  password.length >= 8 && styles.requirementMet
+                ]}>
+                  • At least 8 characters
                 </Text>
-                <Text style={[styles.requirement, /[A-Z]/.test(password) && styles.requirementMet]}>
-                  • One uppercase letter {/[A-Z]/.test(password) && '✓'}
+                <Text style={[
+                  styles.requirement,
+                  /[A-Z]/.test(password) && styles.requirementMet
+                ]}>
+                  • One uppercase letter
                 </Text>
-                <Text style={[styles.requirement, /[a-z]/.test(password) && styles.requirementMet]}>
-                  • One lowercase letter {/[a-z]/.test(password) && '✓'}
+                <Text style={[
+                  styles.requirement,
+                  /[a-z]/.test(password) && styles.requirementMet
+                ]}>
+                  • One lowercase letter
                 </Text>
-                <Text style={[styles.requirement, /\d/.test(password) && styles.requirementMet]}>
-                  • One number {/\d/.test(password) && '✓'}
+                <Text style={[
+                  styles.requirement,
+                  /\d/.test(password) && styles.requirementMet
+                ]}>
+                  • One number
                 </Text>
               </View>
             </View>
@@ -192,12 +280,14 @@ export default function ResetPasswordScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
               
-              {/* Password Match Indicator */}
-              {confirmPassword && (
+              {/* Password match indicator */}
+              {confirmPassword.length > 0 && (
                 <Text
                   style={[
                     styles.matchText,
-                    password === confirmPassword ? styles.matchTextSuccess : styles.matchTextError,
+                    password === confirmPassword
+                      ? styles.matchTextSuccess
+                      : styles.matchTextError,
                   ]}
                 >
                   {password === confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
@@ -281,6 +371,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
     marginBottom: 8,
+  },
+  tokenInput: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 16,
+    fontSize: 14,
+    color: '#1e293b',
+    minHeight: 100,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  hint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  tokenReceivedBanner: {
+    backgroundColor: '#d1fae5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#22c55e',
+  },
+  tokenReceivedText: {
+    color: '#166534',
+    fontSize: 14,
+    fontWeight: '600',
   },
   passwordContainer: {
     flexDirection: 'row',
