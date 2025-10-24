@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "afyascribe",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -18,7 +19,10 @@
         "NSMicrophoneUsageDescription": "This app needs access to microphone for medical voice transcription",
         "NSSpeechRecognitionUsageDescription": "This app needs speech recognition for medical note transcription"
       },
-      "bundleIdentifier": "com.pete-dev.MedicalTranscriptionApp"
+      "bundleIdentifier": "com.pete-dev.MedicalTranscriptionApp",
+      "associatedDomains": [
+        "applinks:afyascribe.co.ke"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -32,7 +36,28 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.pete_dev.MedicalTranscriptionApp"
+      "package": "com.pete_dev.MedicalTranscriptionApp",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "afyascribe",
+              "host": "reset-password"
+            },
+            {
+              "scheme": "https",
+              "host": "afyascribe.co.ke",
+              "pathPrefix": "/app"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -48,7 +73,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "c79385f9-1355-40b4-bead-d87ccb9032a0"
+        "projectId": "d287b34e-f8a6-4db8-ad10-a9a0bc164387"
       }
     }
   }
