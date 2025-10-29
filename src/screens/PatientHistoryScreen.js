@@ -1,4 +1,4 @@
-// src/screens/PatientHistoryScreen.js
+// src/screens/PatientHistoryScreen.js - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,7 +14,7 @@ import {
 import apiService from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
 
-export default function PatientHistoryScreen({ patient, onBack, onAddNewNote }) {
+export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, onEditWithVoice }) {
   const { user } = useAuth();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,23 +28,39 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote }) 
   const [showEditHistory, setShowEditHistory] = useState({});
 
   useEffect(() => {
+    console.log('🔍 PatientHistoryScreen received patient:', patient);
+    console.log('🔍 Patient ID (UUID):', patient?.id);
+    console.log('🔍 Patient ID (Hospital):', patient?.patientId);
+    
     if (patient?.id) {
       loadPatientHistory();
+    } else {
+      console.error('❌ No patient ID found!');
+      Alert.alert('Error', 'Invalid patient data. Missing patient ID.');
+      setLoading(false);
     }
   }, [patient]);
 
   const loadPatientHistory = async () => {
     try {
       setLoading(true);
-      console.log('📋 Loading history for patient:', patient.id);
       
-      const data = await apiService.getPatientHistory(patient.id);
+      // ✅ CRITICAL FIX: Use patient.id (UUID), NOT patient.patientId
+      const patientUUID = patient.id;
+      
+      if (!patientUUID || patientUUID.startsWith('P-')) {
+        throw new Error('Invalid patient ID format. Expected UUID, got: ' + patientUUID);
+      }
+      
+      console.log('📋 Loading history for patient UUID:', patientUUID);
+      
+      const data = await apiService.getPatientHistory(patientUUID);
       setNotes(data);
       
       console.log(`✅ Loaded ${data.length} notes for patient`);
     } catch (error) {
       console.error('❌ Failed to load patient history:', error);
-      Alert.alert('Error', 'Failed to load patient history');
+      Alert.alert('Error', 'Failed to load patient history: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -123,14 +139,25 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote }) 
             )}
           </View>
           
-          {!isEditing && (
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => startEditing(item)}
-            >
-              <Text style={styles.editButtonText}>✏️ Edit</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.noteHeaderRight}>
+            {!isEditing && onEditWithVoice && (
+              <TouchableOpacity
+                style={styles.voiceEditButton}
+                onPress={() => onEditWithVoice(item)}
+              >
+                <Text style={styles.voiceEditButtonText}>🎙️ Edit</Text>
+              </TouchableOpacity>
+            )}
+            
+            {!isEditing && (
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => startEditing(item)}
+              >
+                <Text style={styles.editButtonText}>✏️ Edit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Content - Editable or Display */}
@@ -235,30 +262,17 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote }) 
                   onPress={() => toggleEditHistory(item.id)}
                 >
                   <Text style={styles.editHistoryToggleText}>
-                    {showEditHistory[item.id] ? '▼' : '▶'} View Edit History ({item.editHistory.length})
+                    {showEditHistory[item.id] ? '▼ Hide Edit History' : '▶ Show Edit History'}
                   </Text>
                 </TouchableOpacity>
 
                 {showEditHistory[item.id] && (
                   <View style={styles.editHistoryList}>
-                    {item.editHistory.map((edit, idx) => (
-                      <View key={idx} style={styles.editHistoryItem}>
-                        <Text style={styles.editHistoryHeader}>
+                    {item.editHistory.map((edit, index) => (
+                      <View key={index} style={styles.editHistoryItem}>
+                        <Text style={styles.editHistoryText}>
                           {edit.editedByName} • {formatDate(edit.editedAt)}
                         </Text>
-                        {edit.changes.map((change, changeIdx) => (
-                          <View key={changeIdx} style={styles.changeItem}>
-                            <Text style={styles.changeField}>
-                              {change.field.replace(/([A-Z])/g, ' $1').trim()}:
-                            </Text>
-                            <Text style={styles.changeOldValue} numberOfLines={2}>
-                              Old: {change.oldValue}
-                            </Text>
-                            <Text style={styles.changeNewValue} numberOfLines={2}>
-                              New: {change.newValue}
-                            </Text>
-                          </View>
-                        ))}
                       </View>
                     ))}
                   </View>
@@ -270,17 +284,6 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote }) 
       </View>
     );
   };
-
-  if (!patient) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>No patient selected</Text>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>← Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -294,9 +297,9 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote }) 
         
         <Text style={styles.title}>Patient History</Text>
         <Text style={styles.patientName}>
-          {patient.firstName} {patient.lastName}
+          {patient?.firstName} {patient?.lastName}
         </Text>
-        <Text style={styles.patientId}>ID: {patient.patientId}</Text>
+        <Text style={styles.patientId}>ID: {patient?.patientId}</Text>
         <Text style={styles.notesCount}>
           {notes.length} {notes.length === 1 ? 'note' : 'notes'} on record
         </Text>
@@ -346,6 +349,7 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote }) 
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

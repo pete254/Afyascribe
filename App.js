@@ -1,9 +1,10 @@
-// App.js - Updated with Edit Note Support
+// App.js 
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons'; // ✅ ADD THIS
 import TranscriptionScreen from './src/screens/TranscriptionScreen';
 import SavedNotesScreen from './src/screens/SavedNotesScreen';
 import PatientHistoryScreen from './src/screens/PatientHistoryScreen';
@@ -11,6 +12,7 @@ import AuthScreen from './src/screens/AuthScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -20,7 +22,7 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState('transcription');
   const [activeScreen, setActiveScreen] = useState('transcription');
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [noteToEdit, setNoteToEdit] = useState(null); // 🆕 NEW: Note being edited
+  const [noteToEdit, setNoteToEdit] = useState(null);
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -59,7 +61,6 @@ function MainApp() {
     setActiveTab('transcription');
   };
 
-  // 🆕 NEW: Edit note with voice
   const editNoteWithVoice = (note) => {
     console.log('✏️ Editing note with voice:', note.id);
     setNoteToEdit(note);
@@ -76,10 +77,9 @@ function MainApp() {
   const goBack = () => {
     setActiveScreen(activeTab);
     setSelectedPatient(null);
-    setNoteToEdit(null); // 🆕 Clear edit mode
+    setNoteToEdit(null);
   };
 
-  // 🆕 NEW: Clear edit mode
   const clearEditMode = () => {
     setNoteToEdit(null);
   };
@@ -93,14 +93,15 @@ function MainApp() {
             patient={selectedPatient}
             onBack={goBack}
             onAddNewNote={goToTranscription}
-            onEditWithVoice={editNoteWithVoice} // 🆕 NEW
+            onEditWithVoice={editNoteWithVoice}
           />
         );
       case 'saved':
         return (
           <SavedNotesScreen
             onViewPatientHistory={goToPatientHistory}
-            onEditWithVoice={editNoteWithVoice} // 🆕 NEW
+            onEditWithVoice={editNoteWithVoice}
+            onGoToTranscription={goToTranscription}
           />
         );
       case 'transcription':
@@ -108,10 +109,10 @@ function MainApp() {
         return (
           <TranscriptionScreen
             preselectedPatient={selectedPatient}
-            noteToEdit={noteToEdit} // 🆕 NEW
+            noteToEdit={noteToEdit}
             onViewPatientHistory={goToPatientHistory}
             onClearPatient={() => setSelectedPatient(null)}
-            onClearNote={clearEditMode} // 🆕 NEW
+            onClearNote={clearEditMode}
           />
         );
     }
@@ -132,6 +133,8 @@ function MainApp() {
           style={styles.logoutButton} 
           onPress={logout}
         >
+          {/* ✅ ADD LOGOUT ICON */}
+          <Ionicons name="log-out-outline" size={18} color="#475569" />
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -149,10 +152,15 @@ function MainApp() {
             onPress={() => {
               setActiveTab('transcription');
               setActiveScreen('transcription');
-              setNoteToEdit(null); // Clear edit mode when switching tabs
+              setNoteToEdit(null);
             }}
           >
-            <Text style={styles.tabIcon}>🎙️</Text>
+            {/* ✅ REPLACE EMOJI WITH ICON */}
+            <MaterialCommunityIcons 
+              name="microphone" 
+              size={24} 
+              color={activeTab === 'transcription' ? '#0f766e' : '#64748b'} 
+            />
             <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>
               New Note
             </Text>
@@ -162,7 +170,12 @@ function MainApp() {
             style={[styles.tab, activeTab === 'saved' && styles.activeTab]}
             onPress={goToSavedNotes}
           >
-            <Text style={styles.tabIcon}>💾</Text>
+            {/* ✅ REPLACE EMOJI WITH ICON */}
+            <MaterialCommunityIcons 
+              name="note-text-outline" 
+              size={24} 
+              color={activeTab === 'saved' ? '#0f766e' : '#64748b'} 
+            />
             <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>
               My Notes
             </Text>
@@ -222,6 +235,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   logoutButton: {
+    flexDirection: 'row', // ✅ ADDED
+    alignItems: 'center', // ✅ ADDED
+    gap: 6, // ✅ ADDED
     paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: '#f1f5f9',
@@ -252,17 +268,15 @@ const styles = StyleSheet.create({
   activeTab: {
     backgroundColor: '#f1f5f9',
   },
-  tabIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
+  // ✅ REMOVED tabIcon style (not needed anymore)
   tabText: {
     fontSize: 12,
     fontWeight: '500',
     color: '#64748b',
+    marginTop: 4, // 
   },
   activeTabText: {
-    color: '#3b82f6',
+    color: '#0f766e', // 
     fontWeight: '600',
   },
 });

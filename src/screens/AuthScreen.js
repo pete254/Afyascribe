@@ -11,8 +11,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function AuthScreen({ navigation }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -102,8 +104,11 @@ export default function AuthScreen({ navigation }) {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.logo}>🏥</Text>
-            <Text style={styles.title}>Medical SOAP Notes</Text>
+            <Image 
+              source={require('../../assets/splash.png')} 
+              style={styles.logoImage}
+              />
+            <Text style={styles.title}>AfyaScribe</Text>
             <Text style={styles.subtitle}>
               {isLogin ? 'Sign in to continue' : 'Create your account'}
             </Text>
@@ -173,9 +178,11 @@ export default function AuthScreen({ navigation }) {
                   style={styles.eyeIcon}
                   onPress={() => setShowPassword(!showPassword)}
                 >
-                  <Text style={styles.eyeIconText}>
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </Text>
+                <Ionicons 
+                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
+                  size={22} 
+                  color="#64748b" 
+                />
                 </TouchableOpacity>
               </View>
               {!isLogin && (
@@ -387,9 +394,21 @@ const styles = StyleSheet.create({
     color: '#92400e',
     marginBottom: 4,
   },
+  logoImage: {
+    width: 160,
+    height: 160,
+    marginBottom: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
   demoCredentials: {
     fontSize: 13,
     color: '#92400e',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
+  eyeIcon: {
+  padding: 16,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
 });

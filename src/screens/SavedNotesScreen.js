@@ -1,5 +1,6 @@
-// src/screens/SavedNotesScreen.js - With Edit with Voice Button
+// src/screens/SavedNotesScreen.js - COMPLETE FIXED VERSION
 import React, { useState, useEffect } from 'react';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import {
   View,
   Text,
@@ -13,7 +14,8 @@ import {
 } from 'react-native';
 import apiService from '../services/apiService';
 
-export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice }) {
+// ✅ FIX 1: Add onGoToTranscription prop
+export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice, onGoToTranscription }) {
   const [savedNotes, setSavedNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,9 +54,7 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
         
         status: note.status || 'pending',
         createdBy: note.createdBy || {},
-        patient: note.patient, // 🆕 Keep full patient object for editing
-        
-        // 🆕 Keep full note for editing
+        patient: note.patient,
         fullNote: note,
       }));
 
@@ -161,26 +161,25 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
 
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
-        {/* 🆕 NEW: Edit with Voice Button */}
         <TouchableOpacity 
           style={[styles.actionButton, styles.voiceEditButton]}
           onPress={() => onEditWithVoice && onEditWithVoice(item.fullNote)}
         >
-          <Text style={styles.actionButtonText}>🎙️ Edit</Text>
+          <Text style={styles.actionButtonText}>Edit with voice</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
           style={[styles.actionButton, styles.historyButton]}
           onPress={() => onViewPatientHistory && onViewPatientHistory(item.patient)}
         >
-          <Text style={styles.actionButtonText}>📋 History</Text>
+          <Text style={styles.actionButtonText}>History</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.actionButton, styles.viewButton]}
           onPress={() => handleViewNote(item)}
         >
-          <Text style={styles.actionButtonText}>👁️ View</Text>
+          <Text style={styles.actionButtonText}>View</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -193,13 +192,28 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
     </View>
   );
 
-  // Loading state
+  // ✅ FIX 2: Add back button to loading state
   if (loading) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>📝 My Notes</Text>
-          <Text style={styles.subtitle}>Loading...</Text>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => onGoToTranscription && onGoToTranscription()}
+          >
+            <Ionicons name="arrow-back" size={20} color="#0f766e" />
+            <Text style={styles.backButtonText}>New Note</Text>
+          </TouchableOpacity>
+          
+              <View style={styles.titleContainer}>
+                  <MaterialCommunityIcons name="note-text" size={28} color="#1f2937" />
+                  <Text style={styles.title}>My Notes</Text>
+                </View>
+                
+                <Text style={styles.subtitle}>
+                  {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''}
+                </Text>
+              
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0f766e" />
@@ -209,11 +223,18 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
     );
   }
 
-  // Error state
+  // ✅ FIX 3: Add back button to error state
   if (error) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => onGoToTranscription && onGoToTranscription()}
+          >
+            <Text style={styles.backButtonText}>← New Note</Text>
+          </TouchableOpacity>
+          
           <Text style={styles.title}>📝 My Notes</Text>
           <Text style={styles.subtitle}>Error</Text>
         </View>
@@ -229,9 +250,17 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
     );
   }
 
+  // ✅ FIX 4: Add back button to main return
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => onGoToTranscription && onGoToTranscription()}
+        >
+          <Text style={styles.backButtonText}>← New Note</Text>
+        </TouchableOpacity>
+        
         <Text style={styles.title}>📝 My Notes</Text>
         <Text style={styles.subtitle}>
           {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''}
@@ -283,11 +312,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
+  // ✅ FIX 5: Add back button styles
+  backButton: {
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6, 
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f766e',
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#1f2937',
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
@@ -411,17 +456,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   voiceEditButton: {
-    backgroundColor: '#8b5cf6', // Purple for voice edit
+    backgroundColor: '#0f766e', 
+    alignItems: 'center',
   },
   historyButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#0f766e',
   },
   viewButton: {
     backgroundColor: '#0f766e',
   },
   deleteButton: {
-    backgroundColor: '#ef4444',
-    flex: 0.5, // Smaller delete button
+    backgroundColor: '#0f766e',
+    flex: 0.5,
   },
   actionButtonText: {
     color: '#ffffff',
@@ -463,4 +509,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  titleContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  marginBottom: 4,
+},
 });

@@ -1,68 +1,56 @@
-// src/services/apiService.js
+// src/services/apiService.js - COMPLETE & FIXED VERSION
 import storage from '../utils/storage';
-import Constants from 'expo-constants';
 
-// 🔍 DIAGNOSTIC: Check all possible sources for API URL
-console.log('🔍 ========== API_URL DIAGNOSTIC ==========');
-console.log('1. Constants.expoConfig?.extra:', Constants.expoConfig?.extra);
-console.log('2. process.env.EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL ? 'EXISTS' : 'MISSING');
-
-// ✅ FIXED: Read from multiple sources (same pattern as other services)
-const API_URL = 
-  Constants.expoConfig?.extra?.API_URL ||                  // EAS builds
-  Constants.manifest?.extra?.API_URL ||                    // Legacy
-  Constants.manifest2?.extra?.API_URL ||                   // Legacy
-  process.env.EXPO_PUBLIC_API_URL ||                       // Local dev
-  'https://afyascribe-backend.onrender.com';               // Fallback
-
-console.log('3. Final API_URL:', API_URL);
-console.log('==========================================');
-
-console.log('🌐 API Service initialized with URL:', API_URL);
-
-/**
- * API Service for backend communication
- */
 class ApiService {
-  /**
-   * Make authenticated API request
-   */
+  constructor() {
+    this.baseURL = 'https://afyascribe-backend.onrender.com';
+  }
+
+  // ==================== CORE REQUEST METHOD ====================
+
   async request(endpoint, options = {}) {
+    const token = await storage.getToken();
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const url = `${this.baseURL}${endpoint}`;
+    
+    console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
+
     try {
-      const token = await storage.getToken();
-      
-      const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const config = {
+      const response = await fetch(url, {
         ...options,
         headers,
-      };
+      });
 
-      console.log(`📡 API Request: ${options.method || 'GET'} ${API_URL}${endpoint}`);
+      console.log(`📡 API Response: ${response.status} ${response.statusText}`);
+
+      const contentType = response.headers.get('content-type');
+      let data;
       
-      const response = await fetch(`${API_URL}${endpoint}`, config);
-      
-      if (response.status === 204) {
-        return { success: true };
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
       }
-
-      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+        const errorMessage = data?.message || data?.error || data || 'Request failed';
+        console.error(`❌ API Error:`, errorMessage);
+        throw new Error(errorMessage);
       }
 
-      console.log(`✅ API Success: ${endpoint}`);
+      console.log(`✅ API Success:`, data);
       return data;
     } catch (error) {
-      console.error(`❌ API Error (${endpoint}):`, error);
+      console.error(`❌ API Request Failed:`, error);
       throw error;
     }
   }
@@ -96,8 +84,9 @@ class ApiService {
     await storage.clearAll();
   }
 
-  async forgotPassword(email) {
-    const data = await this.request('/auth/forgot-password', {
+  // ✅ NEW: Request 6-digit reset code
+  async requestResetCode(email) {
+    const data = await this.request('/auth/request-reset-code', {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
@@ -105,10 +94,21 @@ class ApiService {
     return data;
   }
 
-  async resetPassword(token, newPassword) {
-    const data = await this.request('/auth/reset-password', {
+  // ✅ NEW: Verify 6-digit reset code
+  async verifyResetCode(email, code) {
+    const data = await this.request('/auth/verify-reset-code', {
       method: 'POST',
-      body: JSON.stringify({ token, newPassword }),
+      body: JSON.stringify({ email, code }),
+    });
+
+    return data;
+  }
+
+  // ✅ NEW: Reset password with 6-digit code
+  async resetPasswordWithCode(email, code, newPassword) {
+    const data = await this.request('/auth/reset-password-with-code', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, newPassword }),
     });
 
     return data;
@@ -171,6 +171,7 @@ class ApiService {
     });
   }
 
+  // ✅ FIXED: Added updateSoapNoteStatus method
   async updateSoapNoteStatus(id, status) {
     return await this.request(`/soap-notes/${id}/status`, {
       method: 'PATCH',
@@ -184,18 +185,35 @@ class ApiService {
     });
   }
 
-  async getSoapNotesStatistics() {
-    return await this.request('/soap-notes/statistics');
-  }
-
+  // ✅ FIXED: Renamed getPatientNotes to getPatientHistory (matches PatientHistoryScreen usage)
   async getPatientHistory(patientId) {
     return await this.request(`/soap-notes/patient/${patientId}`);
   }
 
+  // ✅ ADDED: Keep alias for backward compatibility
+  async getPatientNotes(patientId) {
+    return await this.getPatientHistory(patientId);
+  }
+
+  // ✅ FIXED: Added editSoapNoteWithHistory method (used in PatientHistoryScreen)
   async editSoapNoteWithHistory(noteId, updateData) {
     return await this.request(`/soap-notes/${noteId}/edit`, {
       method: 'PATCH',
       body: JSON.stringify(updateData),
+    });
+  }
+
+  // ✅ ADDED: Get SOAP notes statistics
+  async getSoapNotesStatistics() {
+    return await this.request('/soap-notes/statistics');
+  }
+
+  // ==================== AI FORMATTING ENDPOINT ====================
+
+  async formatWithAI(text, section) {
+    return await this.request('/soap-notes/format', {
+      method: 'POST',
+      body: JSON.stringify({ text, section }),
     });
   }
 }

@@ -1,5 +1,6 @@
-// src/screens/TranscriptionScreen.js - Complete Updated Version with Format All
+// src/screens/TranscriptionScreen.js 
 import React, { useState, useEffect } from 'react';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import {
   View,
   Text,
@@ -13,10 +14,13 @@ import { useAudioRecording } from '../hooks/useAudioRecording';
 import SoapSectionInput from '../components/SoapSectionInput';
 import PatientSearchBar from '../components/PatientSearchBar';
 
+
 export default function TranscriptionScreen({ 
   preselectedPatient, 
+  noteToEdit,
   onViewPatientHistory,
-  onClearPatient 
+  onClearPatient,
+  onClearNote,
 }) {
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
   
@@ -110,6 +114,17 @@ export default function TranscriptionScreen({
       clearTranscription();
     }
   }, [transcription, activeRecordingSection]);
+
+  useEffect(() => {
+    if(noteToEdit){
+      console.log('📝 noteToEdit detected, populating fields:', noteToEdit);
+      setSymptoms(noteToEdit.symptoms || '');
+      setPhysicalExamination(noteToEdit.physicalExamination || '');
+      setDiagnosis(noteToEdit.diagnosis || '');
+      setManagement(noteToEdit.management || '');
+    }
+    }, [noteToEdit]);
+
 
   const handleStartRecording = async (sectionName) => {
     console.log(`🎙️ START RECORDING for section: ${sectionName}`);
@@ -233,6 +248,13 @@ export default function TranscriptionScreen({
 
   const handlePatientSelect = (patient) => {
     setSelectedPatient(patient);
+    if(onClearNote && noteToEdit && noteToEdit.patient?.id !== patient?.id){
+      onClearNote();
+      setSymptoms('');
+      setPhysicalExamination('');
+      setDiagnosis('');
+      setManagement('');
+    }
   };
 
   const handleClearPatient = () => {
@@ -325,17 +347,23 @@ export default function TranscriptionScreen({
           
           {selectedPatient && (
             <View style={styles.patientHistoryBanner}>
+              <View style={styles.bannerIconContainer}>
+                <Ionicons name="time-outline" size={20} color="#3b82f6" />
+              </View>
+              
               <View style={styles.patientHistoryInfo}>
-                <Text style={styles.patientHistoryLabel}>📋 Patient Selected</Text>
+                <Text style={styles.patientHistoryLabel}>Patient History Available</Text>
                 <Text style={styles.patientHistoryHint}>
-                  View previous notes before adding new ones
+                  View {selectedPatient.firstName}'s previous notes
                 </Text>
               </View>
+              
               <TouchableOpacity
                 style={styles.viewHistoryButton}
                 onPress={() => onViewPatientHistory && onViewPatientHistory(selectedPatient)}
               >
-                <Text style={styles.viewHistoryButtonText}>View History →</Text>
+                <Text style={styles.viewHistoryButtonText}>View</Text>
+                <Ionicons name="arrow-forward" size={16} color="#ffffff" />
               </TouchableOpacity>
             </View>
           )}
@@ -354,7 +382,7 @@ export default function TranscriptionScreen({
             </>
           ) : (
             <>
-              <View style={styles.redDot} />
+              <MaterialCommunityIcons name="record-circle" size={16} color="#ffffff" />
               <Text style={styles.recordingBannerText}>
                 Recording {activeRecordingSection}...
               </Text>
@@ -466,7 +494,7 @@ export default function TranscriptionScreen({
             </>
           ) : (
             <>
-              <Text style={styles.formatAllButtonIcon}>✨</Text>
+              <Ionicons name="sparkles" size={20} color="#ffffff" />
               <Text style={styles.formatAllButtonText}>Format All Sections with AI</Text>
             </>
           )}
@@ -491,7 +519,10 @@ export default function TranscriptionScreen({
               <Text style={styles.saveButtonText}>  Saving...</Text>
             </>
           ) : (
-            <Text style={styles.saveButtonText}>💾 Save All Sections</Text>
+            <>
+            <Ionicons name="save-outline" size={20} color="#ffffff" />
+            <Text style={styles.saveButtonText}>  Save SOAP Note</Text>
+            </>
           )}
         </TouchableOpacity>
       ),
@@ -502,7 +533,7 @@ export default function TranscriptionScreen({
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.appName}>Afyascribe</Text>
-        <Text style={styles.tagline}>Medical Transcription</Text>
+        <Text style={styles.tagline}>Fast, Accurate Medical Notes</Text>
       </View>
 
       <FlatList
@@ -542,7 +573,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   patientHistoryBanner: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: '#ffffff',
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
@@ -550,30 +581,33 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#93c5fd',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
   },
-  patientHistoryInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  patientHistoryLabel: {
-    fontSize: 14,
+   patientHistoryLabel: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1e40af',
-    marginBottom: 4,
+    color: '#1f2937',
+    marginBottom: 2,
   },
   patientHistoryHint: {
-    fontSize: 12,
-    color: '#3b82f6',
-    lineHeight: 16,
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
   },
   viewHistoryButton: {
     backgroundColor: '#3b82f6',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   viewHistoryButtonText: {
     color: '#ffffff',
@@ -594,13 +628,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-  redDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#ffffff',
-  },
-  // 🆕 NEW: Format All Button Styles
+  
   formatAllButton: {
     backgroundColor: '#8b5cf6',
     marginHorizontal: 16,
@@ -641,6 +669,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   saveButtonDisabled: {
     backgroundColor: '#9ca3af',
@@ -650,4 +681,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  bannerIconContainer: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#eff6ff',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: 12,
+  },
+  patientHistoryInfo: {
+  flex: 1,
+},
 });

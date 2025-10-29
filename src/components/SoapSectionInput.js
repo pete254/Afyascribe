@@ -1,4 +1,4 @@
-// src/components/SoapSectionInput.js
+// src/components/SoapSectionInput.js 
 import React from 'react';
 import {
   View,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons'; // ✅ Import icons
 
 function SoapSectionInput({
   title,
@@ -31,11 +32,18 @@ function SoapSectionInput({
         activeOpacity={0.7}
       >
         <View style={styles.headerLeft}>
-          <Text style={styles.collapseIcon}>{isCollapsed ? '▶' : '▼'}</Text>
+          {/* ✅ Replace emoji with icon */}
+          <Ionicons 
+            name={isCollapsed ? "chevron-forward" : "chevron-down"} 
+            size={16} 
+            color="#6b7280" 
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.title}>{title}</Text>
           {value.trim() && (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>✓</Text>
+              {/* ✅ Replace emoji with icon */}
+              <Ionicons name="checkmark" size={14} color="#ffffff" />
             </View>
           )}
         </View>
@@ -49,7 +57,7 @@ function SoapSectionInput({
         <View style={styles.content}>
           {/* Input Area with Mic Button */}
           <View style={styles.inputContainer}>
-            {/* Microphone Button (Left side) */}
+            {/* ✅ Microphone Button - WhatsApp Style! */}
             <TouchableOpacity
               style={[
                 styles.micButton,
@@ -58,9 +66,11 @@ function SoapSectionInput({
               onPress={onStartRecording}
               disabled={isFormatting}
             >
-              <Text style={styles.micIcon}>
-                {isRecording ? '⏹️' : '🎙️'}
-              </Text>
+              {isRecording ? (
+                <MaterialCommunityIcons name="stop" size={24} color="#ffffff" />
+              ) : (
+                <MaterialCommunityIcons name="microphone" size={24} color="#ffffff" />
+              )}
             </TouchableOpacity>
 
             {/* Text Input */}
@@ -79,18 +89,19 @@ function SoapSectionInput({
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            {/* Clear Button */}
+            {/* ✅ Clear Button with icon */}
             {value.trim() && (
               <TouchableOpacity
                 style={styles.clearButton}
                 onPress={onClear}
                 disabled={isRecording || isFormatting}
               >
-                <Text style={styles.clearButtonText}>🗑️ Clear</Text>
+                <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                <Text style={styles.clearButtonText}>Clear</Text>
               </TouchableOpacity>
             )}
 
-            {/* Format with AI Button */}
+            {/* ✅ Format with AI Button with icon */}
             <TouchableOpacity
               style={[
                 styles.formatButton,
@@ -103,17 +114,17 @@ function SoapSectionInput({
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
                 <>
-                  <Text style={styles.formatButtonIcon}>✨</Text>
+                  <Ionicons name="sparkles" size={16} color="#ffffff" />
                   <Text style={styles.formatButtonText}>Format with AI</Text>
                 </>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* Recording indicator */}
+          {/* ✅ Recording indicator with icon */}
           {isRecording && (
             <View style={styles.recordingIndicator}>
-              <View style={styles.recordingDot} />
+              <MaterialCommunityIcons name="record-circle" size={12} color="#ef4444" />
               <Text style={styles.recordingText}>Recording...</Text>
             </View>
           )}
@@ -152,11 +163,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  collapseIcon: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginRight: 8,
-  },
   title: {
     fontSize: 16,
     fontWeight: '600',
@@ -166,16 +172,11 @@ const styles = StyleSheet.create({
   badge: {
     backgroundColor: '#22c55e',
     borderRadius: 12,
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
-  },
-  badgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
   },
   charCount: {
     fontSize: 12,
@@ -191,9 +192,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   micButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#0f766e',
     alignItems: 'center',
     justifyContent: 'center',
@@ -201,14 +202,11 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   micButtonActive: {
     backgroundColor: '#ef4444',
-  },
-  micIcon: {
-    fontSize: 20,
   },
   textInput: {
     flex: 1,
@@ -229,13 +227,16 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: '#fee2e2',
     borderWidth: 1,
     borderColor: '#fecaca',
-    alignItems: 'center',
+    gap: 6,
   },
   clearButtonText: {
     color: '#dc2626',
@@ -256,9 +257,6 @@ const styles = StyleSheet.create({
   formatButtonDisabled: {
     backgroundColor: '#9ca3af',
   },
-  formatButtonIcon: {
-    fontSize: 16,
-  },
   formatButtonText: {
     color: '#ffffff',
     fontSize: 15,
@@ -272,13 +270,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: '#fef3c7',
     borderRadius: 8,
-  },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ef4444',
-    marginRight: 8,
+    gap: 8,
   },
   recordingText: {
     color: '#d97706',
