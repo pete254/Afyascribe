@@ -1,7 +1,8 @@
-// src/services/AudioService.js - With Enhanced Diagnostics
+// src/services/AudioService.js - Backend Transcription Version
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 class AudioService {
   constructor() {
@@ -12,33 +13,7 @@ class AudioService {
     this.durationInterval = null;
     this.currentTranscript = '';
     
-    // 🔍 DIAGNOSTIC: Check all possible sources for API key
-    console.log('🔍 ========== API KEY DIAGNOSTIC ==========');
-    console.log('1. Constants.expoConfig?.extra:', Constants.expoConfig?.extra);
-    console.log('2. Constants.manifest?.extra:', Constants.manifest?.extra);
-    console.log('3. Constants.manifest2?.extra:', Constants.manifest2?.extra);
-    console.log('4. process.env.EXPO_PUBLIC_GROQ_API_KEY:', process.env.EXPO_PUBLIC_GROQ_API_KEY ? 'EXISTS' : 'MISSING');
-    
-    // Try multiple sources for the API key
-    this.API_KEY = 
-      Constants.expoConfig?.extra?.GROQ_API_KEY || 
-      Constants.manifest?.extra?.GROQ_API_KEY ||
-      Constants.manifest2?.extra?.GROQ_API_KEY ||
-      process.env.EXPO_PUBLIC_GROQ_API_KEY;
-    
-    console.log('5. Final API_KEY:', this.API_KEY ? `${this.API_KEY.substring(0, 10)}...` : 'NOT FOUND');
-    console.log('==========================================');
-    
-    if (!this.API_KEY) {
-      console.error('❌ CRITICAL: Groq API key not found in any location!');
-      console.error('📋 Checklist:');
-      console.error('   1. Check app.json has GROQ_API_KEY in extra section');
-      console.error('   2. For local dev: Check .env has EXPO_PUBLIC_GROQ_API_KEY');
-      console.error('   3. For builds: Check EAS secrets with `eas secret:list`');
-      console.error('   4. Restart dev server with `npx expo start -c`');
-    } else {
-      console.log('✅ Groq API key loaded successfully');
-    }
+    console.log('✅ AudioService initialized (Backend transcription mode)');
   }
 
   async initialize() {
@@ -90,6 +65,7 @@ class AudioService {
   async startRecording() {
     try {
       console.log('Starting recording...');
+      console.log('📱 Platform:', Platform.OS);
       
       this.currentTranscript = '';
       
@@ -107,13 +83,11 @@ class AudioService {
         },
         ios: {
           extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
           audioQuality: Audio.IOSAudioQuality.HIGH,
           sampleRate: 44100,
           numberOfChannels: 2,
           bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
         },
       };
 
@@ -136,7 +110,7 @@ class AudioService {
         }
       }, 1000);
 
-      console.log('Recording started successfully');
+      console.log('✅ Recording started successfully with AAC/M4A format');
       return { success: true };
 
     } catch (error) {
@@ -166,7 +140,7 @@ class AudioService {
         if (uri) {
           try {
             this.isTranscribing = true;
-            console.log('🚀 Starting Groq Whisper transcription...');
+            console.log('🚀 Starting transcription via backend...');
             
             const transcriptionResult = await this.transcribeAudio(uri);
             
@@ -212,52 +186,74 @@ class AudioService {
 
   async transcribeAudio(audioUri) {
     try {
-      console.log('🚀 Starting Groq Whisper API transcription...');
+      console.log('🚀 Starting transcription via backend...');
+      console.log('📱 Platform:', Platform.OS);
 
-      if (!this.API_KEY) {
-        throw new Error('Groq API key not configured. Check app.json extra section or .env file.');
-      }
-
+      // Validate audio file exists
       const audioInfo = await FileSystem.getInfoAsync(audioUri);
       if (!audioInfo.exists) {
         throw new Error('Audio file does not exist');
       }
 
-      console.log('📁 Audio file info:', audioInfo);
+      console.log('📁 Audio file URI:', audioUri);
+      console.log('📁 Audio file size:', audioInfo.size, 'bytes', `(${(audioInfo.size / 1024).toFixed(2)} KB)`);
 
-      const formData = new FormData();
-      
-      formData.append('file', {
-        uri: audioUri,
-        type: 'audio/m4a',
-        name: 'recording.m4a',
+      // Read the audio file as base64
+      const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
-      
-      formData.append('model', 'whisper-large-v3-turbo');
-      formData.append('language', 'en');
-      formData.append('prompt', 'Medical consultation with patient. Include medical terminology, SOAP notes format, symptoms, diagnosis, assessment, and treatment plan details.');
-      formData.append('response_format', 'text');
 
-      console.log('📤 Sending request to Groq Whisper API...');
-      console.log('🔑 Using API key:', this.API_KEY.substring(0, 10) + '...');
+      console.log('📊 Base64 audio length:', base64Audio.length);
+      console.log('📊 First 50 chars of base64:', base64Audio.substring(0, 50));
 
-      const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      // Get backend URL from multiple sources
+      const API_URL = 
+        Constants.expoConfig?.extra?.API_URL ||
+        Constants.manifest?.extra?.API_URL ||
+        Constants.manifest2?.extra?.API_URL ||
+        process.env.EXPO_PUBLIC_API_URL ||
+        'https://afyascribe-backend.onrender.com';
+
+      // Get authentication token
+      const storage = require('../utils/storage').default;
+      const token = await storage.getToken();
+
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
+      console.log('📤 Sending to backend:', `${API_URL}/transcription/transcribe`);
+
+      // Send base64 audio to backend
+      const response = await fetch(`${API_URL}/transcription/transcribe`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.API_KEY}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        body: formData,
+        body: JSON.stringify({
+          audioBase64: base64Audio,
+          platform: Platform.OS,
+        }),
       });
+
+      console.log('📨 Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Groq API error response:', errorText);
-        throw new Error(`Groq API request failed: ${response.status} - ${errorText}`);
+        console.error('❌ Backend transcription error:', errorText);
+        throw new Error(`Transcription failed: ${response.status} - ${errorText}`);
       }
 
-      const transcriptionText = await response.text();
-      
-      console.log('✅ Groq transcription completed successfully');
+      const data = await response.json();
+      const transcriptionText = data.text || data.transcription;
+
+      if (!transcriptionText) {
+        throw new Error('No transcription text received from backend');
+      }
+
+      console.log('✅ Transcription completed successfully');
+      console.log('📝 Transcribed text length:', transcriptionText.length, 'characters');
       console.log('📝 Transcribed text:', transcriptionText);
 
       return {
@@ -266,7 +262,7 @@ class AudioService {
       };
 
     } catch (error) {
-      console.error('❌ Groq transcription failed:', error);
+      console.error('❌ Transcription failed:', error);
       throw error;
     }
   }
