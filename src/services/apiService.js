@@ -216,6 +216,77 @@ class ApiService {
       body: JSON.stringify({ text, section }),
     });
   }
+    // ==================== ICD-10 ENDPOINTS ====================
+
+  /**
+   * Search ICD-10 codes
+   */
+  async searchIcd10Codes(query, limit = 15) {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+    
+    try {
+      const response = await this.request(
+        `/icd10/search?q=${encodeURIComponent(query)}&limit=${limit}`
+      );
+      return response;
+    } catch (error) {
+      console.error('❌ ICD-10 search failed:', error);
+      // Return empty array on error so app doesn't crash
+      return [];
+    }
+  }
+
+  /**
+   * Get most popular ICD-10 codes
+   */
+  async getPopularIcd10Codes(limit = 20) {
+    try {
+      return await this.request(`/icd10/popular?limit=${limit}`);
+    } catch (error) {
+      console.error('❌ Failed to get popular ICD-10 codes:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get ICD-10 code details
+   */
+  async getIcd10CodeDetails(code) {
+    try {
+      return await this.request(`/icd10/code/${code}`);
+    } catch (error) {
+      console.error(`❌ Failed to get ICD-10 code ${code}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Validate ICD-10 code format
+   */
+  async validateIcd10Code(code) {
+    try {
+      return await this.request(`/icd10/validate/${code}`);
+    } catch (error) {
+      console.error('❌ ICD-10 validation failed:', error);
+      return { valid: false, message: 'Validation failed' };
+    }
+  }
+
+  /**
+   * Get codes by chapter
+   */
+  async getIcd10ByChapter(chapterCode, limit = 50) {
+    try {
+      return await this.request(`/icd10/chapter/${chapterCode}?limit=${limit}`);
+    } catch (error) {
+      console.error('❌ Failed to get ICD-10 codes by chapter:', error);
+      return [];
+    }
+  }
 }
+
+
 
 export default new ApiService();

@@ -1,4 +1,4 @@
-// src/screens/SavedNotesScreen.js - COMPLETE FIXED VERSION
+// src/screens/SavedNotesScreen.js - Updated with Lab & Imaging sections
 import React, { useState, useEffect } from 'react';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import {
@@ -14,14 +14,12 @@ import {
 } from 'react-native';
 import apiService from '../services/apiService';
 
-// ✅ FIX 1: Add onGoToTranscription prop
 export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice, onGoToTranscription }) {
   const [savedNotes, setSavedNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  // Load notes from backend when component mounts
   useEffect(() => {
     loadNotesFromBackend();
   }, []);
@@ -46,7 +44,11 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
         // SOAP sections
         symptoms: note.symptoms || '',
         physicalExamination: note.physicalExamination || '',
+        labInvestigations: note.labInvestigations || '', // NEW
+        imaging: note.imaging || '', // NEW
         diagnosis: note.diagnosis || '',
+        icd10Code: note.icd10Code || '', // NEW
+        icd10Description: note.icd10Description || '', // NEW
         management: note.management || '',
         
         // Combined view
@@ -72,7 +74,10 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
     let preview = '';
     if (note.symptoms) preview += `S: ${note.symptoms}\n\n`;
     if (note.physicalExamination) preview += `O: ${note.physicalExamination}\n\n`;
+    if (note.labInvestigations) preview += `Lab: ${note.labInvestigations}\n\n`; // NEW
+    if (note.imaging) preview += `Imaging: ${note.imaging}\n\n`; // NEW
     if (note.diagnosis) preview += `A: ${note.diagnosis}\n\n`;
+    if (note.icd10Code) preview += `ICD-10: ${note.icd10Code} - ${note.icd10Description}\n\n`; // NEW
     if (note.management) preview += `P: ${note.management}`;
     return preview || 'No SOAP notes available';
   };
@@ -143,13 +148,68 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
       {/* Header */}
       <View style={styles.noteHeader}>
         <View style={styles.noteHeaderLeft}>
-          <Text style={styles.patientName}>👤 {item.patientName}</Text>
+          <View style={styles.patientNameRow}>
+            <Ionicons name="person-circle-outline" size={20} color="#1f2937" />
+            <Text style={styles.patientName}>{item.patientName}</Text>
+          </View>
           <Text style={styles.patientId}>ID: {item.patientId}</Text>
         </View>
         <View style={styles.noteHeaderRight}>
-          <Text style={styles.noteDate}>{item.date}</Text>
-          <Text style={styles.noteTime}>{item.time}</Text>
+          <View style={styles.dateRow}>
+            <Ionicons name="calendar-outline" size={14} color="#64748b" />
+            <Text style={styles.noteDate}>{item.date}</Text>
+          </View>
+          <View style={styles.timeRow}>
+            <Ionicons name="time-outline" size={14} color="#64748b" />
+            <Text style={styles.noteTime}>{item.time}</Text>
+          </View>
         </View>
+      </View>
+
+      {/* Quick indicators for sections */}
+      <View style={styles.indicatorsRow}>
+        {item.symptoms && (
+          <View style={styles.indicator}>
+            <Ionicons name="chatbox-ellipses-outline" size={14} color="#0f766e" />
+            <Text style={styles.indicatorText}>S</Text>
+          </View>
+        )}
+        {item.physicalExamination && (
+          <View style={styles.indicator}>
+            <Ionicons name="body-outline" size={14} color="#0f766e" />
+            <Text style={styles.indicatorText}>O</Text>
+          </View>
+        )}
+        {item.labInvestigations && (
+          <View style={styles.indicator}>
+            <Ionicons name="flask-outline" size={14} color="#0f766e" />
+            <Text style={styles.indicatorText}>Lab</Text>
+          </View>
+        )}
+        {item.imaging && (
+          <View style={styles.indicator}>
+            <Ionicons name="image-outline" size={14} color="#0f766e" />
+            <Text style={styles.indicatorText}>Img</Text>
+          </View>
+        )}
+        {item.diagnosis && (
+          <View style={styles.indicator}>
+            <Ionicons name="medical-outline" size={14} color="#0f766e" />
+            <Text style={styles.indicatorText}>A</Text>
+          </View>
+        )}
+        {item.icd10Code && (
+          <View style={styles.indicator}>
+            <Ionicons name="clipboard-outline" size={14} color="#0f766e" />
+            <Text style={styles.indicatorText}>ICD-10</Text>
+          </View>
+        )}
+        {item.management && (
+          <View style={styles.indicator}>
+            <Ionicons name="list-outline" size={14} color="#0f766e" />
+            <Text style={styles.indicatorText}>P</Text>
+          </View>
+        )}
       </View>
 
       {/* SOAP Preview */}
@@ -165,13 +225,15 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
           style={[styles.actionButton, styles.voiceEditButton]}
           onPress={() => onEditWithVoice && onEditWithVoice(item.fullNote)}
         >
-          <Text style={styles.actionButtonText}>Edit with voice</Text>
+          <Ionicons name="mic-outline" size={16} color="#ffffff" />
+          <Text style={styles.actionButtonText}>Edit</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
           style={[styles.actionButton, styles.historyButton]}
           onPress={() => onViewPatientHistory && onViewPatientHistory(item.patient)}
         >
+          <Ionicons name="time-outline" size={16} color="#ffffff" />
           <Text style={styles.actionButtonText}>History</Text>
         </TouchableOpacity>
         
@@ -179,6 +241,7 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
           style={[styles.actionButton, styles.viewButton]}
           onPress={() => handleViewNote(item)}
         >
+          <Ionicons name="eye-outline" size={16} color="#ffffff" />
           <Text style={styles.actionButtonText}>View</Text>
         </TouchableOpacity>
         
@@ -186,13 +249,12 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
           style={[styles.actionButton, styles.deleteButton]}
           onPress={() => handleDeleteNote(item.id)}
         >
-          <Text style={styles.actionButtonText}>🗑️</Text>
+          <Ionicons name="trash-outline" size={16} color="#ffffff" />
         </TouchableOpacity>
       </View>
     </View>
   );
 
-  // ✅ FIX 2: Add back button to loading state
   if (loading) {
     return (
       <View style={styles.container}>
@@ -205,15 +267,14 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
             <Text style={styles.backButtonText}>New Note</Text>
           </TouchableOpacity>
           
-              <View style={styles.titleContainer}>
-                  <MaterialCommunityIcons name="note-text" size={28} color="#1f2937" />
-                  <Text style={styles.title}>My Notes</Text>
-                </View>
-                
-                <Text style={styles.subtitle}>
-                  {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''}
-                </Text>
-              
+          <View style={styles.titleContainer}>
+            <MaterialCommunityIcons name="note-text" size={28} color="#1f2937" />
+            <Text style={styles.title}>My Notes</Text>
+          </View>
+          
+          <Text style={styles.subtitle}>
+            {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''}
+          </Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0f766e" />
@@ -223,7 +284,6 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
     );
   }
 
-  // ✅ FIX 3: Add back button to error state
   if (error) {
     return (
       <View style={styles.container}>
@@ -232,25 +292,29 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
             style={styles.backButton}
             onPress={() => onGoToTranscription && onGoToTranscription()}
           >
-            <Text style={styles.backButtonText}>← New Note</Text>
+            <Ionicons name="arrow-back" size={20} color="#0f766e" />
+            <Text style={styles.backButtonText}>New Note</Text>
           </TouchableOpacity>
           
-          <Text style={styles.title}>📝 My Notes</Text>
+          <View style={styles.titleContainer}>
+            <MaterialCommunityIcons name="note-text" size={28} color="#1f2937" />
+            <Text style={styles.title}>My Notes</Text>
+          </View>
           <Text style={styles.subtitle}>Error</Text>
         </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
+          <Ionicons name="warning-outline" size={64} color="#dc2626" />
           <Text style={styles.errorTitle}>Unable to load notes</Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadNotesFromBackend}>
-            <Text style={styles.retryButtonText}>🔄 Try Again</Text>
+            <Ionicons name="reload-outline" size={20} color="#ffffff" />
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  // ✅ FIX 4: Add back button to main return
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -258,10 +322,14 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
           style={styles.backButton}
           onPress={() => onGoToTranscription && onGoToTranscription()}
         >
-          <Text style={styles.backButtonText}>← New Note</Text>
+          <Ionicons name="arrow-back" size={20} color="#0f766e" />
+          <Text style={styles.backButtonText}>New Note</Text>
         </TouchableOpacity>
         
-        <Text style={styles.title}>📝 My Notes</Text>
+        <View style={styles.titleContainer}>
+          <MaterialCommunityIcons name="note-text" size={28} color="#1f2937" />
+          <Text style={styles.title}>My Notes</Text>
+        </View>
         <Text style={styles.subtitle}>
           {savedNotes.length} note{savedNotes.length !== 1 ? 's' : ''}
         </Text>
@@ -269,13 +337,14 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
 
       {savedNotes.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📋</Text>
+          <Ionicons name="document-text-outline" size={64} color="#9ca3af" />
           <Text style={styles.emptyTitle}>No saved notes yet</Text>
           <Text style={styles.emptySubtitle}>
             Create and save notes in the Transcription tab to see them here
           </Text>
           <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
-            <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
+            <Ionicons name="reload-outline" size={20} color="#ffffff" />
+            <Text style={styles.refreshButtonText}>Refresh</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -312,7 +381,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  // ✅ FIX 5: Add back button styles
   backButton: {
     marginBottom: 12,
     paddingVertical: 8,
@@ -322,12 +390,19 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6, 
+    gap: 6,
   },
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#0f766e',
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 4,
   },
   title: {
     fontSize: 28,
@@ -357,14 +432,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
-  errorIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   errorTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#dc2626',
+    marginTop: 16,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -375,6 +447,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: '#0f766e',
     paddingHorizontal: 24,
     paddingVertical: 12,
@@ -413,25 +488,61 @@ const styles = StyleSheet.create({
   noteHeaderRight: {
     alignItems: 'flex-end',
   },
+  patientNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
   patientName: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1f2937',
-    marginBottom: 4,
   },
   patientId: {
     fontSize: 13,
     color: '#6b7280',
+    marginLeft: 26,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   noteDate: {
     fontSize: 14,
     fontWeight: '600',
     color: '#0f766e',
-    marginBottom: 2,
   },
   noteTime: {
     fontSize: 12,
     color: '#9ca3af',
+  },
+  indicatorsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  indicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#dcfce7',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  indicatorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0f766e',
   },
   soapPreview: {
     backgroundColor: '#f9fafb',
@@ -451,13 +562,15 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
     padding: 10,
     borderRadius: 8,
-    alignItems: 'center',
   },
   voiceEditButton: {
-    backgroundColor: '#0f766e', 
-    alignItems: 'center',
+    backgroundColor: '#0f766e',
   },
   historyButton: {
     backgroundColor: '#0f766e',
@@ -466,7 +579,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f766e',
   },
   deleteButton: {
-    backgroundColor: '#0f766e',
+    backgroundColor: '#ef4444',
     flex: 0.5,
   },
   actionButtonText: {
@@ -480,14 +593,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#374151',
+    marginTop: 16,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -499,6 +609,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: '#0f766e',
     paddingHorizontal: 24,
     paddingVertical: 12,
@@ -509,11 +622,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  titleContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  marginBottom: 4,
-},
 });

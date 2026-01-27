@@ -1,4 +1,4 @@
-// src/components/SoapSectionInput.js 
+// src/components/SoapSectionInput.js
 import React from 'react';
 import {
   View,
@@ -8,7 +8,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons'; // ✅ Import icons
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import ICD10SearchDropdown from './ICD10SearchDropdown';
 
 function SoapSectionInput({
   title,
@@ -22,6 +23,11 @@ function SoapSectionInput({
   placeholder,
   isCollapsed = false,
   onToggleCollapse,
+
+  // ICD-10 props
+  showIcd10Search = false,
+  selectedIcd10Code = null,
+  onIcd10Select,
 }) {
   return (
     <View style={styles.container}>
@@ -32,32 +38,40 @@ function SoapSectionInput({
         activeOpacity={0.7}
       >
         <View style={styles.headerLeft}>
-          {/* ✅ Replace emoji with icon */}
-          <Ionicons 
-            name={isCollapsed ? "chevron-forward" : "chevron-down"} 
-            size={16} 
-            color="#6b7280" 
+          <Ionicons
+            name={isCollapsed ? 'chevron-forward' : 'chevron-down'}
+            size={16}
+            color="#6b7280"
             style={{ marginRight: 8 }}
           />
+
           <Text style={styles.title}>{title}</Text>
+
           {value.trim() && (
             <View style={styles.badge}>
-              {/* ✅ Replace emoji with icon */}
               <Ionicons name="checkmark" size={14} color="#ffffff" />
             </View>
           )}
+
+          {showIcd10Search && selectedIcd10Code && (
+            <View style={styles.icd10Badge}>
+              <Text style={styles.icd10BadgeText}>
+                {selectedIcd10Code.code}
+              </Text>
+            </View>
+          )}
         </View>
+
         {!isCollapsed && value.trim() && (
           <Text style={styles.charCount}>{value.length} chars</Text>
         )}
       </TouchableOpacity>
 
-      {/* Content (only show if not collapsed) */}
+      {/* Content */}
       {!isCollapsed && (
         <View style={styles.content}>
-          {/* Input Area with Mic Button */}
+          {/* Input + Mic */}
           <View style={styles.inputContainer}>
-            {/* ✅ Microphone Button - WhatsApp Style! */}
             <TouchableOpacity
               style={[
                 styles.micButton,
@@ -66,14 +80,13 @@ function SoapSectionInput({
               onPress={onStartRecording}
               disabled={isFormatting}
             >
-              {isRecording ? (
-                <MaterialCommunityIcons name="stop" size={24} color="#ffffff" />
-              ) : (
-                <MaterialCommunityIcons name="microphone" size={24} color="#ffffff" />
-              )}
+              <MaterialCommunityIcons
+                name={isRecording ? 'stop' : 'microphone'}
+                size={24}
+                color="#ffffff"
+              />
             </TouchableOpacity>
 
-            {/* Text Input */}
             <TextInput
               style={styles.textInput}
               placeholder={placeholder}
@@ -87,25 +100,39 @@ function SoapSectionInput({
             />
           </View>
 
-          {/* Action Buttons */}
+          {/* ICD-10 Dropdown */}
+          {showIcd10Search && (
+            <View style={styles.icd10Container}>
+              <ICD10SearchDropdown
+                selectedCode={selectedIcd10Code}
+                onCodeSelect={onIcd10Select}
+                disabled={isRecording || isFormatting}
+              />
+            </View>
+          )}
+
+          {/* Actions */}
           <View style={styles.actionButtons}>
-            {/* ✅ Clear Button with icon */}
             {value.trim() && (
               <TouchableOpacity
                 style={styles.clearButton}
                 onPress={onClear}
                 disabled={isRecording || isFormatting}
               >
-                <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                <Ionicons
+                  name="trash-outline"
+                  size={16}
+                  color="#dc2626"
+                />
                 <Text style={styles.clearButtonText}>Clear</Text>
               </TouchableOpacity>
             )}
 
-            {/* ✅ Format with AI Button with icon */}
             <TouchableOpacity
               style={[
                 styles.formatButton,
-                (!value.trim() || isRecording) && styles.formatButtonDisabled,
+                (!value.trim() || isRecording) &&
+                  styles.formatButtonDisabled,
               ]}
               onPress={onFormat}
               disabled={isFormatting || !value.trim() || isRecording}
@@ -115,17 +142,23 @@ function SoapSectionInput({
               ) : (
                 <>
                   <Ionicons name="sparkles" size={16} color="#ffffff" />
-                  <Text style={styles.formatButtonText}>Format with AI</Text>
+                  <Text style={styles.formatButtonText}>
+                    Format with AI
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
           </View>
 
-          {/* ✅ Recording indicator with icon */}
+          {/* Recording indicator */}
           {isRecording && (
             <View style={styles.recordingIndicator}>
-              <MaterialCommunityIcons name="record-circle" size={12} color="#ef4444" />
-              <Text style={styles.recordingText}>Recording...</Text>
+              <MaterialCommunityIcons
+                name="record-circle"
+                size={12}
+                color="#ef4444"
+              />
+              <Text style={styles.recordingText}>Recording…</Text>
             </View>
           )}
         </View>
@@ -142,10 +175,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
     elevation: 2,
   },
   header: {
@@ -178,10 +207,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
+  icd10Badge: {
+    backgroundColor: '#0f766e',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  icd10BadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   charCount: {
     fontSize: 12,
     color: '#9ca3af',
-    marginLeft: 8,
   },
   content: {
     padding: 16,
@@ -199,11 +239,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
   micButtonActive: {
     backgroundColor: '#ef4444',
@@ -213,16 +248,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderRadius: 8,
     padding: 12,
-    fontSize: 15,
-    color: '#1f2937',
     minHeight: 100,
-    textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
+  icd10Container: {
+    marginBottom: 12,
+  },
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: 8,
   },
   clearButton: {
@@ -230,17 +264,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     paddingVertical: 10,
-    paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: '#fee2e2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    gap: 6,
   },
   clearButtonText: {
     color: '#dc2626',
-    fontSize: 14,
     fontWeight: '600',
   },
   formatButton: {
@@ -248,18 +278,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     paddingVertical: 10,
-    paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: '#0f766e',
-    gap: 6,
   },
   formatButtonDisabled: {
     backgroundColor: '#9ca3af',
   },
   formatButtonText: {
     color: '#ffffff',
-    fontSize: 15,
     fontWeight: '600',
   },
   recordingIndicator: {
@@ -267,14 +295,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    paddingVertical: 8,
+    gap: 6,
     backgroundColor: '#fef3c7',
+    paddingVertical: 8,
     borderRadius: 8,
-    gap: 8,
   },
   recordingText: {
     color: '#d97706',
-    fontSize: 14,
     fontWeight: '600',
   },
 });

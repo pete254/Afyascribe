@@ -1,4 +1,4 @@
-// src/screens/TranscriptionScreen.js 
+// src/screens/TranscriptionScreen.js - COMPLETE WITH LAB, IMAGING & ICD-10
 import React, { useState, useEffect } from 'react';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import {
@@ -14,7 +14,6 @@ import { useAudioRecording } from '../hooks/useAudioRecording';
 import SoapSectionInput from '../components/SoapSectionInput';
 import PatientSearchBar from '../components/PatientSearchBar';
 
-
 export default function TranscriptionScreen({ 
   preselectedPatient, 
   noteToEdit,
@@ -24,16 +23,24 @@ export default function TranscriptionScreen({
 }) {
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
   
+  // SOAP section states - expanded with Lab and Imaging
   const [symptoms, setSymptoms] = useState('');
   const [physicalExamination, setPhysicalExamination] = useState('');
+  const [labInvestigations, setLabInvestigations] = useState('');
+  const [imaging, setImaging] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [management, setManagement] = useState('');
+  
+  // ICD-10 state
+  const [selectedIcd10Code, setSelectedIcd10Code] = useState(null);
   
   const [activeRecordingSection, setActiveRecordingSection] = useState(null);
   
   const [formatingSections, setFormatingSections] = useState({
     symptoms: false,
     physicalExamination: false,
+    labInvestigations: false,
+    imaging: false,
     diagnosis: false,
     management: false,
   });
@@ -41,6 +48,8 @@ export default function TranscriptionScreen({
   const [collapsedSections, setCollapsedSections] = useState({
     symptoms: false,
     physicalExamination: false,
+    labInvestigations: false,
+    imaging: false,
     diagnosis: false,
     management: false,
   });
@@ -80,28 +89,42 @@ export default function TranscriptionScreen({
         case 'symptoms':
           setSymptoms((prev) => {
             const newValue = prev ? `${prev}\n\n${transcription}` : transcription;
-            console.log('✅ Symptoms updated to:', newValue);
+            console.log('✅ Symptoms updated');
             return newValue;
           });
           break;
         case 'physicalExamination':
           setPhysicalExamination((prev) => {
             const newValue = prev ? `${prev}\n\n${transcription}` : transcription;
-            console.log('✅ Physical Examination updated to:', newValue);
+            console.log('✅ Physical Examination updated');
+            return newValue;
+          });
+          break;
+        case 'labInvestigations':
+          setLabInvestigations((prev) => {
+            const newValue = prev ? `${prev}\n\n${transcription}` : transcription;
+            console.log('✅ Lab Investigations updated');
+            return newValue;
+          });
+          break;
+        case 'imaging':
+          setImaging((prev) => {
+            const newValue = prev ? `${prev}\n\n${transcription}` : transcription;
+            console.log('✅ Imaging updated');
             return newValue;
           });
           break;
         case 'diagnosis':
           setDiagnosis((prev) => {
             const newValue = prev ? `${prev}\n\n${transcription}` : transcription;
-            console.log('✅ Diagnosis updated to:', newValue);
+            console.log('✅ Diagnosis updated');
             return newValue;
           });
           break;
         case 'management':
           setManagement((prev) => {
             const newValue = prev ? `${prev}\n\n${transcription}` : transcription;
-            console.log('✅ Management updated to:', newValue);
+            console.log('✅ Management updated');
             return newValue;
           });
           break;
@@ -115,16 +138,26 @@ export default function TranscriptionScreen({
     }
   }, [transcription, activeRecordingSection]);
 
+  // Handle note editing
   useEffect(() => {
-    if(noteToEdit){
+    if (noteToEdit) {
       console.log('📝 noteToEdit detected, populating fields:', noteToEdit);
       setSymptoms(noteToEdit.symptoms || '');
       setPhysicalExamination(noteToEdit.physicalExamination || '');
+      setLabInvestigations(noteToEdit.labInvestigations || '');
+      setImaging(noteToEdit.imaging || '');
       setDiagnosis(noteToEdit.diagnosis || '');
       setManagement(noteToEdit.management || '');
+      
+      // Restore ICD-10 code if present
+      if (noteToEdit.icd10Code) {
+        setSelectedIcd10Code({
+          code: noteToEdit.icd10Code,
+          short_description: noteToEdit.icd10Description || '',
+        });
+      }
     }
-    }, [noteToEdit]);
-
+  }, [noteToEdit]);
 
   const handleStartRecording = async (sectionName) => {
     console.log(`🎙️ START RECORDING for section: ${sectionName}`);
@@ -167,11 +200,12 @@ export default function TranscriptionScreen({
     }
   };
 
-  // 🆕 NEW: Format All Sections
   const handleFormatAll = async () => {
     const sectionsWithContent = [
       { title: 'Symptoms', text: symptoms, setter: setSymptoms, key: 'symptoms' },
       { title: 'Physical Examination', text: physicalExamination, setter: setPhysicalExamination, key: 'physicalExamination' },
+      { title: 'Lab Investigations', text: labInvestigations, setter: setLabInvestigations, key: 'labInvestigations' },
+      { title: 'Imaging', text: imaging, setter: setImaging, key: 'imaging' },
       { title: 'Diagnosis', text: diagnosis, setter: setDiagnosis, key: 'diagnosis' },
       { title: 'Management', text: management, setter: setManagement, key: 'management' },
     ].filter(section => section.text.trim());
@@ -188,7 +222,6 @@ export default function TranscriptionScreen({
       
       console.log(`🔄 Formatting ${sectionsWithContent.length} sections...`);
       
-      // Format all sections sequentially
       for (const section of sectionsWithContent) {
         setFormatingSections((prev) => ({ ...prev, [section.key]: true }));
         
@@ -201,7 +234,6 @@ export default function TranscriptionScreen({
           }
         } catch (error) {
           console.error(`❌ Failed to format ${section.title}:`, error);
-          // Continue with other sections even if one fails
         } finally {
           setFormatingSections((prev) => ({ ...prev, [section.key]: false }));
         }
@@ -241,6 +273,8 @@ export default function TranscriptionScreen({
   const getSectionKey = (title) => {
     if (title.includes('Symptoms')) return 'symptoms';
     if (title.includes('Physical')) return 'physicalExamination';
+    if (title.includes('Lab')) return 'labInvestigations';
+    if (title.includes('Imaging')) return 'imaging';
     if (title.includes('Diagnosis')) return 'diagnosis';
     if (title.includes('Management')) return 'management';
     return '';
@@ -248,11 +282,14 @@ export default function TranscriptionScreen({
 
   const handlePatientSelect = (patient) => {
     setSelectedPatient(patient);
-    if(onClearNote && noteToEdit && noteToEdit.patient?.id !== patient?.id){
+    if (onClearNote && noteToEdit && noteToEdit.patient?.id !== patient?.id) {
       onClearNote();
       setSymptoms('');
       setPhysicalExamination('');
+      setLabInvestigations('');
+      setImaging('');
       setDiagnosis('');
+      setSelectedIcd10Code(null);
       setManagement('');
     }
   };
@@ -264,15 +301,14 @@ export default function TranscriptionScreen({
     }
   };
 
+  const handleIcd10Select = (code) => {
+    console.log('📋 ICD-10 code selected:', code);
+    setSelectedIcd10Code(code);
+  };
+
   const handleSaveAll = async () => {
     console.log('💾 Save button pressed');
     console.log('Selected patient:', selectedPatient);
-    console.log('Content:', {
-      symptoms: symptoms.trim(),
-      physicalExamination: physicalExamination.trim(),
-      diagnosis: diagnosis.trim(),
-      management: management.trim(),
-    });
 
     if (!selectedPatient) {
       Alert.alert('Error', 'Please select a patient first');
@@ -280,7 +316,13 @@ export default function TranscriptionScreen({
     }
 
     // Check if at least one section has content
-    const hasContent = symptoms.trim() || physicalExamination.trim() || diagnosis.trim() || management.trim();
+    const hasContent = 
+      symptoms.trim() || 
+      physicalExamination.trim() || 
+      labInvestigations.trim() || 
+      imaging.trim() || 
+      diagnosis.trim() || 
+      management.trim();
     
     if (!hasContent) {
       Alert.alert('Error', 'Please add content to at least one section');
@@ -292,12 +334,15 @@ export default function TranscriptionScreen({
     try {
       const apiService = require('../services/apiService').default;
       
-      // Ensure all fields are strings (even if empty)
       const soapNoteData = {
         patientId: selectedPatient.id,
         symptoms: symptoms.trim() || '',
         physicalExamination: physicalExamination.trim() || '',
+        labInvestigations: labInvestigations.trim() || '',
+        imaging: imaging.trim() || '',
         diagnosis: diagnosis.trim() || '',
+        icd10Code: selectedIcd10Code?.code || null,
+        icd10Description: selectedIcd10Code?.short_description || null,
         management: management.trim() || '',
       };
 
@@ -315,7 +360,10 @@ export default function TranscriptionScreen({
             onPress: () => {
               setSymptoms('');
               setPhysicalExamination('');
+              setLabInvestigations('');
+              setImaging('');
               setDiagnosis('');
+              setSelectedIcd10Code(null);
               setManagement('');
               setSelectedPatient(null);
               if (onClearPatient) {
@@ -396,7 +444,7 @@ export default function TranscriptionScreen({
       type: 'soap-section',
       component: (
         <SoapSectionInput
-          title="1. Symptoms & Diagnosis"
+          title="1. Symptoms & History"
           value={symptoms}
           onChangeText={setSymptoms}
           onFormat={() => handleFormatSection('Symptoms', symptoms, setSymptoms)}
@@ -432,11 +480,49 @@ export default function TranscriptionScreen({
       ),
     },
     {
+      id: 'labInvestigations',
+      type: 'soap-section',
+      component: (
+        <SoapSectionInput
+          title="3. Lab Investigations 🧪"
+          value={labInvestigations}
+          onChangeText={setLabInvestigations}
+          onFormat={() => handleFormatSection('Lab Investigations', labInvestigations, setLabInvestigations)}
+          onClear={() => handleClearSection('Lab Investigations', setLabInvestigations)}
+          onStartRecording={() => handleStartRecording('labInvestigations')}
+          isRecording={isRecording && activeRecordingSection === 'labInvestigations'}
+          isFormatting={formatingSections.labInvestigations}
+          placeholder="Lab tests ordered, results, values, interpretations (CBC, chemistry panel, urinalysis, etc.)"
+          isCollapsed={collapsedSections.labInvestigations}
+          onToggleCollapse={() => toggleSection('labInvestigations')}
+        />
+      ),
+    },
+    {
+      id: 'imaging',
+      type: 'soap-section',
+      component: (
+        <SoapSectionInput
+          title="4. Imaging 📸"
+          value={imaging}
+          onChangeText={setImaging}
+          onFormat={() => handleFormatSection('Imaging', imaging, setImaging)}
+          onClear={() => handleClearSection('Imaging', setImaging)}
+          onStartRecording={() => handleStartRecording('imaging')}
+          isRecording={isRecording && activeRecordingSection === 'imaging'}
+          isFormatting={formatingSections.imaging}
+          placeholder="Imaging studies ordered, findings, impressions (X-ray, CT, MRI, ultrasound...)"
+          isCollapsed={collapsedSections.imaging}
+          onToggleCollapse={() => toggleSection('imaging')}
+        />
+      ),
+    },
+    {
       id: 'diagnosis',
       type: 'soap-section',
       component: (
         <SoapSectionInput
-          title="3. Diagnosis"
+          title="5. Diagnosis"
           value={diagnosis}
           onChangeText={setDiagnosis}
           onFormat={() => handleFormatSection('Diagnosis', diagnosis, setDiagnosis)}
@@ -447,6 +533,9 @@ export default function TranscriptionScreen({
           placeholder="Clinical diagnosis, assessment, differential diagnosis..."
           isCollapsed={collapsedSections.diagnosis}
           onToggleCollapse={() => toggleSection('diagnosis')}
+          showIcd10Search={true}
+          selectedIcd10Code={selectedIcd10Code}
+          onIcd10Select={handleIcd10Select}
         />
       ),
     },
@@ -455,7 +544,7 @@ export default function TranscriptionScreen({
       type: 'soap-section',
       component: (
         <SoapSectionInput
-          title="4. Management"
+          title="6. Management"
           value={management}
           onChangeText={setManagement}
           onFormat={() => handleFormatSection('Management', management, setManagement)}
@@ -477,14 +566,16 @@ export default function TranscriptionScreen({
           style={[
             styles.formatAllButton,
             (isFormattingAll || isRecording || 
-             (!symptoms.trim() && !physicalExamination.trim() && !diagnosis.trim() && !management.trim())) 
+             (!symptoms.trim() && !physicalExamination.trim() && !labInvestigations.trim() && 
+              !imaging.trim() && !diagnosis.trim() && !management.trim())) 
             && styles.formatAllButtonDisabled
           ]}
           onPress={handleFormatAll}
           disabled={
             isFormattingAll || 
             isRecording || 
-            (!symptoms.trim() && !physicalExamination.trim() && !diagnosis.trim() && !management.trim())
+            (!symptoms.trim() && !physicalExamination.trim() && !labInvestigations.trim() && 
+             !imaging.trim() && !diagnosis.trim() && !management.trim())
           }
         >
           {isFormattingAll ? (
@@ -520,8 +611,8 @@ export default function TranscriptionScreen({
             </>
           ) : (
             <>
-            <Ionicons name="save-outline" size={20} color="#ffffff" />
-            <Text style={styles.saveButtonText}>  Save SOAP Note</Text>
+              <Ionicons name="save-outline" size={20} color="#ffffff" />
+              <Text style={styles.saveButtonText}>  Save SOAP Note</Text>
             </>
           )}
         </TouchableOpacity>
@@ -589,7 +680,19 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#3b82f6',
   },
-   patientHistoryLabel: {
+  bannerIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  patientHistoryInfo: {
+    flex: 1,
+  },
+  patientHistoryLabel: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1f2937',
@@ -628,7 +731,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-  
   formatAllButton: {
     backgroundColor: '#8b5cf6',
     marginHorizontal: 16,
@@ -648,9 +750,6 @@ const styles = StyleSheet.create({
   },
   formatAllButtonDisabled: {
     backgroundColor: '#9ca3af',
-  },
-  formatAllButtonIcon: {
-    fontSize: 20,
   },
   formatAllButtonText: {
     color: '#ffffff',
@@ -681,16 +780,4 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  bannerIconContainer: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: '#eff6ff',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: 12,
-  },
-  patientHistoryInfo: {
-  flex: 1,
-},
 });

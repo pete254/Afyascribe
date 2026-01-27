@@ -1,4 +1,4 @@
-// src/screens/PatientHistoryScreen.js - FIXED VERSION
+// src/screens/PatientHistoryScreen.js - Updated with Lab & Imaging sections
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import apiService from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,7 +23,11 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
   const [editedData, setEditedData] = useState({
     symptoms: '',
     physicalExamination: '',
+    labInvestigations: '', // NEW
+    imaging: '', // NEW
     diagnosis: '',
+    icd10Code: '', // NEW
+    icd10Description: '', // NEW
     management: '',
   });
   const [showEditHistory, setShowEditHistory] = useState({});
@@ -45,7 +50,6 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
     try {
       setLoading(true);
       
-      // ✅ CRITICAL FIX: Use patient.id (UUID), NOT patient.patientId
       const patientUUID = patient.id;
       
       if (!patientUUID || patientUUID.startsWith('P-')) {
@@ -71,7 +75,11 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
     setEditedData({
       symptoms: note.symptoms,
       physicalExamination: note.physicalExamination,
+      labInvestigations: note.labInvestigations || '', // NEW
+      imaging: note.imaging || '', // NEW
       diagnosis: note.diagnosis,
+      icd10Code: note.icd10Code || '', // NEW
+      icd10Description: note.icd10Description || '', // NEW
       management: note.management,
     });
   };
@@ -81,7 +89,11 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
     setEditedData({
       symptoms: '',
       physicalExamination: '',
+      labInvestigations: '',
+      imaging: '',
       diagnosis: '',
+      icd10Code: '',
+      icd10Description: '',
       management: '',
     });
   };
@@ -127,15 +139,24 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
         {/* Header */}
         <View style={styles.noteHeader}>
           <View style={styles.noteHeaderLeft}>
-            <Text style={styles.doctorName}>
-              👨‍⚕️ Dr. {item.createdBy?.firstName} {item.createdBy?.lastName}
-            </Text>
-            <Text style={styles.noteDate}>{formatDate(item.createdAt)}</Text>
+            <View style={styles.doctorNameRow}>
+              <Ionicons name="medical-outline" size={18} color="#0f766e" />
+              <Text style={styles.doctorName}>
+                Dr. {item.createdBy?.firstName} {item.createdBy?.lastName}
+              </Text>
+            </View>
+            <View style={styles.noteDateRow}>
+              <Ionicons name="calendar-outline" size={14} color="#64748b" />
+              <Text style={styles.noteDate}>{formatDate(item.createdAt)}</Text>
+            </View>
             
             {item.lastEditedByName && (
-              <Text style={styles.editedLabel}>
-                ✏️ Edited by {item.lastEditedByName} • {formatDate(item.lastEditedAt)}
-              </Text>
+              <View style={styles.editedLabelRow}>
+                <Ionicons name="create-outline" size={14} color="#d97706" />
+                <Text style={styles.editedLabel}>
+                  Edited by {item.lastEditedByName} • {formatDate(item.lastEditedAt)}
+                </Text>
+              </View>
             )}
           </View>
           
@@ -145,7 +166,8 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
                 style={styles.voiceEditButton}
                 onPress={() => onEditWithVoice(item)}
               >
-                <Text style={styles.voiceEditButtonText}>🎙️ Edit</Text>
+                <Ionicons name="mic-outline" size={16} color="#ffffff" />
+                <Text style={styles.voiceEditButtonText}>Edit</Text>
               </TouchableOpacity>
             )}
             
@@ -154,7 +176,8 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
                 style={styles.editButton}
                 onPress={() => startEditing(item)}
               >
-                <Text style={styles.editButtonText}>✏️ Edit</Text>
+                <Ionicons name="create-outline" size={16} color="#0f766e" />
+                <Text style={styles.editButtonText}>Edit</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -183,6 +206,26 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
               placeholder="Physical examination..."
             />
 
+            {/* Lab Investigations - NEW */}
+            <Text style={styles.sectionLabel}>Lab Investigations</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editedData.labInvestigations}
+              onChangeText={(text) => setEditedData(prev => ({ ...prev, labInvestigations: text }))}
+              multiline
+              placeholder="Lab results..."
+            />
+
+            {/* Imaging - NEW */}
+            <Text style={styles.sectionLabel}>Imaging</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editedData.imaging}
+              onChangeText={(text) => setEditedData(prev => ({ ...prev, imaging: text }))}
+              multiline
+              placeholder="Imaging findings..."
+            />
+
             {/* Diagnosis */}
             <Text style={styles.sectionLabel}>Diagnosis</Text>
             <TextInput
@@ -191,6 +234,24 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
               onChangeText={(text) => setEditedData(prev => ({ ...prev, diagnosis: text }))}
               multiline
               placeholder="Diagnosis..."
+            />
+
+            {/* ICD-10 Code - NEW */}
+            <Text style={styles.sectionLabel}>ICD-10 Code</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editedData.icd10Code}
+              onChangeText={(text) => setEditedData(prev => ({ ...prev, icd10Code: text }))}
+              placeholder="ICD-10 code (e.g., J18.9)"
+            />
+
+            {/* ICD-10 Description - NEW */}
+            <Text style={styles.sectionLabel}>ICD-10 Description</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editedData.icd10Description}
+              onChangeText={(text) => setEditedData(prev => ({ ...prev, icd10Description: text }))}
+              placeholder="ICD-10 description"
             />
 
             {/* Management */}
@@ -209,14 +270,16 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
                 style={styles.saveButton}
                 onPress={() => saveEdit(item.id)}
               >
-                <Text style={styles.saveButtonText}>💾 Save Changes</Text>
+                <Ionicons name="checkmark-circle-outline" size={20} color="#ffffff" />
+                <Text style={styles.saveButtonText}>Save Changes</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={cancelEditing}
               >
-                <Text style={styles.cancelButtonText}>✕ Cancel</Text>
+                <Ionicons name="close-circle-outline" size={20} color="#ffffff" />
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -225,7 +288,10 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
             {/* Symptoms */}
             {item.symptoms && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Symptoms & Diagnosis</Text>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="chatbox-ellipses-outline" size={18} color="#0f766e" />
+                  <Text style={styles.sectionTitle}>Symptoms & Diagnosis</Text>
+                </View>
                 <Text style={styles.sectionText}>{item.symptoms}</Text>
               </View>
             )}
@@ -233,23 +299,64 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
             {/* Physical Examination */}
             {item.physicalExamination && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Physical Examination</Text>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="body-outline" size={18} color="#0f766e" />
+                  <Text style={styles.sectionTitle}>Physical Examination</Text>
+                </View>
                 <Text style={styles.sectionText}>{item.physicalExamination}</Text>
+              </View>
+            )}
+
+            {/* Lab Investigations - NEW */}
+            {item.labInvestigations && (
+              <View style={styles.section}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="flask-outline" size={18} color="#0f766e" />
+                  <Text style={styles.sectionTitle}>Lab Investigations</Text>
+                </View>
+                <Text style={styles.sectionText}>{item.labInvestigations}</Text>
+              </View>
+            )}
+
+            {/* Imaging - NEW */}
+            {item.imaging && (
+              <View style={styles.section}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="image-outline" size={18} color="#0f766e" />
+                  <Text style={styles.sectionTitle}>Imaging</Text>
+                </View>
+                <Text style={styles.sectionText}>{item.imaging}</Text>
               </View>
             )}
 
             {/* Diagnosis */}
             {item.diagnosis && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Diagnosis</Text>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="medical-outline" size={18} color="#0f766e" />
+                  <Text style={styles.sectionTitle}>Diagnosis</Text>
+                </View>
                 <Text style={styles.sectionText}>{item.diagnosis}</Text>
+                
+                {/* ICD-10 Code - NEW */}
+                {item.icd10Code && (
+                  <View style={styles.icd10Badge}>
+                    <Ionicons name="clipboard-outline" size={16} color="#065f46" />
+                    <Text style={styles.icd10BadgeText}>
+                      ICD-10: {item.icd10Code} - {item.icd10Description}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
             {/* Management */}
             {item.management && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Management</Text>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="list-outline" size={18} color="#0f766e" />
+                  <Text style={styles.sectionTitle}>Management</Text>
+                </View>
                 <Text style={styles.sectionText}>{item.management}</Text>
               </View>
             )}
@@ -261,8 +368,13 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
                   style={styles.editHistoryToggle}
                   onPress={() => toggleEditHistory(item.id)}
                 >
+                  <Ionicons 
+                    name={showEditHistory[item.id] ? "chevron-down-outline" : "chevron-forward-outline"} 
+                    size={16} 
+                    color="#6b7280" 
+                  />
                   <Text style={styles.editHistoryToggleText}>
-                    {showEditHistory[item.id] ? '▼ Hide Edit History' : '▶ Show Edit History'}
+                    {showEditHistory[item.id] ? 'Hide Edit History' : 'Show Edit History'}
                   </Text>
                 </TouchableOpacity>
 
@@ -270,6 +382,7 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
                   <View style={styles.editHistoryList}>
                     {item.editHistory.map((edit, index) => (
                       <View key={index} style={styles.editHistoryItem}>
+                        <Ionicons name="time-outline" size={14} color="#6b7280" />
                         <Text style={styles.editHistoryText}>
                           {edit.editedByName} • {formatDate(edit.editedAt)}
                         </Text>
@@ -290,25 +403,40 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
+          <TouchableOpacity onPress={onBack} style={styles.backButtonContainer}>
+            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
         </View>
         
-        <Text style={styles.title}>Patient History</Text>
-        <Text style={styles.patientName}>
-          {patient?.firstName} {patient?.lastName}
-        </Text>
-        <Text style={styles.patientId}>ID: {patient?.patientId}</Text>
-        <Text style={styles.notesCount}>
-          {notes.length} {notes.length === 1 ? 'note' : 'notes'} on record
-        </Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="time-outline" size={28} color="#ffffff" />
+          <Text style={styles.title}>Patient History</Text>
+        </View>
+        
+        <View style={styles.patientInfoRow}>
+          <Ionicons name="person-circle-outline" size={24} color="#ffffff" />
+          <View style={styles.patientInfoText}>
+            <Text style={styles.patientName}>
+              {patient?.firstName} {patient?.lastName}
+            </Text>
+            <Text style={styles.patientId}>ID: {patient?.patientId}</Text>
+          </View>
+        </View>
+        
+        <View style={styles.notesCountRow}>
+          <Ionicons name="document-text-outline" size={18} color="#d1fae5" />
+          <Text style={styles.notesCount}>
+            {notes.length} {notes.length === 1 ? 'note' : 'notes'} on record
+          </Text>
+        </View>
         
         <TouchableOpacity
           style={styles.addNoteButton}
           onPress={() => onAddNewNote(patient)}
         >
-          <Text style={styles.addNoteButtonText}>+ Add New Note</Text>
+          <Ionicons name="add-circle-outline" size={20} color="#0f766e" />
+          <Text style={styles.addNoteButtonText}>Add New Note</Text>
         </TouchableOpacity>
       </View>
 
@@ -323,7 +451,7 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
       {/* Notes List */}
       {!loading && notes.length === 0 && (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📋</Text>
+          <Ionicons name="document-text-outline" size={64} color="#9ca3af" />
           <Text style={styles.emptyTitle}>No Notes Yet</Text>
           <Text style={styles.emptySubtitle}>
             This patient doesn't have any notes recorded yet
@@ -332,6 +460,7 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
             style={styles.addFirstNoteButton}
             onPress={() => onAddNewNote(patient)}
           >
+            <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
             <Text style={styles.addFirstNoteButtonText}>Add First Note</Text>
           </TouchableOpacity>
         </View>
@@ -350,7 +479,6 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -365,39 +493,64 @@ const styles = StyleSheet.create({
   headerTop: {
     marginBottom: 12,
   },
+  backButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   backButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
   title: {
     fontSize: 24,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 8,
+  },
+  patientInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  patientInfoText: {
+    flex: 1,
   },
   patientName: {
     fontSize: 20,
     fontWeight: '600',
     color: '#ffffff',
-    marginBottom: 4,
   },
   patientId: {
     fontSize: 14,
     color: '#d1fae5',
-    marginBottom: 8,
+  },
+  notesCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
   },
   notesCount: {
     fontSize: 14,
     color: '#d1fae5',
-    marginBottom: 16,
   },
   addNoteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#ffffff',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-    alignItems: 'center',
   },
   addNoteButtonText: {
     color: '#0f766e',
@@ -421,14 +574,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#374151',
+    marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
@@ -438,6 +588,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   addFirstNoteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#0f766e',
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -474,22 +627,57 @@ const styles = StyleSheet.create({
   noteHeaderLeft: {
     flex: 1,
   },
+  noteHeaderRight: {
+    gap: 8,
+  },
+  doctorNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
   doctorName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 4,
+  },
+  noteDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   noteDate: {
     fontSize: 13,
     color: '#6b7280',
   },
+  editedLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
   editedLabel: {
     fontSize: 11,
     color: '#d97706',
-    marginTop: 4,
+  },
+  voiceEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#0f766e',
+    borderRadius: 6,
+  },
+  voiceEditButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingVertical: 6,
     paddingHorizontal: 12,
     backgroundColor: '#f3f4f6',
@@ -506,16 +694,38 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 12,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 6,
   },
   sectionText: {
     fontSize: 15,
     color: '#1f2937',
     lineHeight: 22,
+  },
+  icd10Badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: '#dcfce7',
+    padding: 10,
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0f766e',
+  },
+  icd10BadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#065f46',
+    flex: 1,
   },
   editForm: {
     maxHeight: 500,
@@ -546,10 +756,13 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#22c55e',
     paddingVertical: 12,
     borderRadius: 8,
-    alignItems: 'center',
   },
   saveButtonText: {
     color: '#ffffff',
@@ -558,10 +771,13 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#ef4444',
     paddingVertical: 12,
     borderRadius: 8,
-    alignItems: 'center',
   },
   cancelButtonText: {
     color: '#ffffff',
@@ -575,6 +791,9 @@ const styles = StyleSheet.create({
     borderTopColor: '#e5e7eb',
   },
   editHistoryToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 8,
   },
   editHistoryToggleText: {
@@ -589,45 +808,16 @@ const styles = StyleSheet.create({
     borderLeftColor: '#e5e7eb',
   },
   editHistoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
-  editHistoryHeader: {
+  editHistoryText: {
     fontSize: 12,
-    fontWeight: '600',
     color: '#6b7280',
-    marginBottom: 8,
-  },
-  changeItem: {
-    marginLeft: 8,
-    marginBottom: 8,
-  },
-  changeField: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 4,
-    textTransform: 'capitalize',
-  },
-  changeOldValue: {
-    fontSize: 11,
-    color: '#ef4444',
-    marginBottom: 2,
-  },
-  changeNewValue: {
-    fontSize: 11,
-    color: '#22c55e',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 40,
-  },
-  backButton: {
-    marginTop: 20,
-    alignSelf: 'center',
   },
 });

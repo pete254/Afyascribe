@@ -1,11 +1,10 @@
-// src/services/soapFormatter.js - Simplified for speed
+// src/services/soapFormatter.js - Updated with Lab & Imaging sections
 import { chatWithGemini } from './geminiClient';
 
 /**
  * Get ultra-simple section-specific prompt
  */
 function getSectionPrompt(sectionName, rawText) {
-  // Determine which section and use the simplest possible instruction
   const nameLower = sectionName.toLowerCase();
   
   if (nameLower.includes('symptom')) {
@@ -13,7 +12,17 @@ function getSectionPrompt(sectionName, rawText) {
   }
   
   if (nameLower.includes('physical') || nameLower.includes('examination')) {
-    return `Rewrite concisely in plain text(no headers, no asterisks):\n${rawText}`;
+    return `Rewrite concisely in plain text (no headers, no asterisks):\n${rawText}`;
+  }
+  
+  // NEW: Lab Investigations
+  if (nameLower.includes('lab') || nameLower.includes('investigation')) {
+    return `Rewrite lab results concisely in plain text (no headers, no asterisks). Include test names, values, and units:\n${rawText}`;
+  }
+  
+  // NEW: Imaging
+  if (nameLower.includes('imaging') || nameLower.includes('radiology')) {
+    return `Rewrite imaging findings concisely in plain text (no headers, no asterisks). Include modality, findings, and impressions:\n${rawText}`;
   }
   
   if (nameLower.includes('diagnosis')) {
@@ -40,6 +49,11 @@ function cleanResponse(text, sectionName) {
   const headers = [
     'Symptoms:',
     'Physical Examination:',
+    'Lab Investigations:',
+    'Laboratory Investigations:',
+    'Imaging:',
+    'Imaging Findings:',
+    'Radiology:',
     'Diagnosis:',
     'Management:',
     'Treatment:',
@@ -73,7 +87,7 @@ function cleanResponse(text, sectionName) {
 
 /**
  * Format a single SOAP section with AI
- * @param {string} sectionName - 'Symptoms', 'Physical Examination', 'Diagnosis', or 'Management'
+ * @param {string} sectionName - 'Symptoms', 'Physical Examination', 'Lab Investigations', 'Imaging', 'Diagnosis', or 'Management'
  * @param {string} rawText - Raw transcribed or typed text
  * @returns {Promise<string>} Formatted text for that section
  */
