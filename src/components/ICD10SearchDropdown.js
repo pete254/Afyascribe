@@ -9,6 +9,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Keyboard,
+  ScrollView
 } from 'react-native';
 import apiService from '../services/apiService';
 
@@ -57,7 +58,7 @@ export default function ICD10SearchDropdown({
   const loadPopularCodes = async () => {
     try {
       console.log('📊 Loading popular ICD-10 codes...');
-      const codes = await apiService.getPopularIcd10Codes(20);
+      const codes = await apiService.getPopularIcd10Codes(50);
       console.log(`✅ Loaded ${codes.length} popular codes`);
       setPopularCodes(codes);
       setResults(codes);
@@ -70,11 +71,11 @@ export default function ICD10SearchDropdown({
     setLoading(true);
     try {
       console.log(`🔍 Searching ICD-10 for: "${searchQuery}"`);
-      const codes = await apiService.searchIcd10Codes(searchQuery, 15);
+      const codes = await apiService.searchIcd10Codes(searchQuery, 100);
       console.log(`✅ Found ${codes.length} codes`);
       setResults(codes);
     } catch (error) {
-      console.error('❌ ICD-10 search error:', error);
+      console.error('❌ ICD-10 search error:',  error);
       // Fallback to popular codes on error
       setResults(popularCodes);
     } finally {
@@ -84,14 +85,23 @@ export default function ICD10SearchDropdown({
 
   const handleSelectCode = (code) => {
     console.log('✅ Selected ICD-10 code:', code.code, '-', code.short_description);
+    // Call the callback first to ensure selection is registered
     onCodeSelect(code);
-    setQuery('');
-    setShowDropdown(false);
-    Keyboard.dismiss();
+    // Clear state after a minimal delay to ensure event propagation completes
+    setTimeout(() => {
+      setQuery('');
+      setShowDropdown(false);
+      Keyboard.dismiss();
+    }, 50);
   };
 
   const handleClearSelection = () => {
     console.log('🗑️ Clearing ICD-10 selection');
+    // Reset dropdown state
+    setQuery('');
+    setResults(popularCodes);
+    setShowDropdown(false);
+    // Notify parent component
     onCodeSelect(null);
   };
 
@@ -107,7 +117,7 @@ export default function ICD10SearchDropdown({
     // Delay to allow tap on dropdown item
     setTimeout(() => {
       setShowDropdown(false);
-    }, 200);
+    }, 150);
   };
 
   const renderCodeItem = ({ item }) => (
@@ -115,6 +125,7 @@ export default function ICD10SearchDropdown({
       style={styles.resultItem}
       onPress={() => handleSelectCode(item)}
       activeOpacity={0.7}
+      delayPressIn={0}
     >
       <View style={styles.resultContent}>
         <Text style={styles.resultCode}>{item.code}</Text>
@@ -203,21 +214,19 @@ export default function ICD10SearchDropdown({
           )}
 
           {/* Results List */}
-          <FlatList
-            data={results}
-            renderItem={renderCodeItem}
-            keyExtractor={(item) => item.id || item.code}
-            style={styles.resultsList}
-            nestedScrollEnabled={true}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  No codes found
-                </Text>
-              </View>
-            }
-          />
+            <ScrollView 
+              style={styles.resultsList}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="always"
+              onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => true}
+            >
+              {results.map((item) => (
+                <View key={item.id || item.code}>
+                  {renderCodeItem({ item })}
+                </View>
+              ))}
+            </ScrollView>
         </View>
       )}
     </View>
@@ -279,6 +288,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    overflow: 'hidden',
   },
   dropdownHeader: {
     paddingHorizontal: 12,
@@ -293,7 +303,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   resultsList: {
-    maxHeight: 250,
+    flexGrow: 1,
   },
   resultItem: {
     flexDirection: 'row',
