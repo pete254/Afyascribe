@@ -1,10 +1,9 @@
-// src/components/ICD10SearchDropdown.js
+// src/components/ICD10SearchDropdown.js - FIXED VERSION
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -75,7 +74,7 @@ export default function ICD10SearchDropdown({
       console.log(`✅ Found ${codes.length} codes`);
       setResults(codes);
     } catch (error) {
-      console.error('❌ ICD-10 search error:',  error);
+      console.error('❌ ICD-10 search error:', error);
       // Fallback to popular codes on error
       setResults(popularCodes);
     } finally {
@@ -83,16 +82,21 @@ export default function ICD10SearchDropdown({
     }
   };
 
+  // ✅ FIXED: Ensure selection completes before state changes
   const handleSelectCode = (code) => {
     console.log('✅ Selected ICD-10 code:', code.code, '-', code.short_description);
-    // Call the callback first to ensure selection is registered
+    
+    // Immediately notify parent (this is synchronous)
     onCodeSelect(code);
-    // Clear state after a minimal delay to ensure event propagation completes
+    
+    // Then update local state
+    setQuery('');
+    setShowDropdown(false);
+    
+    // Dismiss keyboard last (after a tiny delay to ensure selection is registered)
     setTimeout(() => {
-      setQuery('');
-      setShowDropdown(false);
       Keyboard.dismiss();
-    }, 50);
+    }, 100);
   };
 
   const handleClearSelection = () => {
@@ -113,19 +117,19 @@ export default function ICD10SearchDropdown({
     }
   };
 
+  // ✅ FIXED: Don't hide dropdown on blur - let selection handle it
   const handleBlur = () => {
-    // Delay to allow tap on dropdown item
-    setTimeout(() => {
-      setShowDropdown(false);
-    }, 150);
+    // Empty - removal of setTimeout prevents dropdown from closing before tap registers
   };
 
+  // ✅ FIXED: Improved touch handling with delayPressOut
   const renderCodeItem = ({ item }) => (
     <TouchableOpacity
       style={styles.resultItem}
       onPress={() => handleSelectCode(item)}
       activeOpacity={0.7}
       delayPressIn={0}
+      delayPressOut={0} // ✅ Added - ensures immediate response
     >
       <View style={styles.resultContent}>
         <Text style={styles.resultCode}>{item.code}</Text>
@@ -213,20 +217,19 @@ export default function ICD10SearchDropdown({
             </View>
           )}
 
-          {/* Results List */}
-            <ScrollView 
-              style={styles.resultsList}
-              nestedScrollEnabled={true}
-              keyboardShouldPersistTaps="always"
-              onStartShouldSetResponder={() => true}
-              onMoveShouldSetResponder={() => true}
-            >
-              {results.map((item) => (
-                <View key={item.id || item.code}>
-                  {renderCodeItem({ item })}
-                </View>
-              ))}
-            </ScrollView>
+          {/* ✅ FIXED: Better scroll handling */}
+          <ScrollView 
+            style={styles.resultsList}
+            nestedScrollEnabled={true}
+            keyboardShouldPersistTaps="handled" // ✅ Changed from "always"
+            removeClippedSubviews={false} // ✅ Added - prevents render issues
+          >
+            {results.map((item) => (
+              <View key={item.id || item.code}>
+                {renderCodeItem({ item })}
+              </View>
+            ))}
+          </ScrollView>
         </View>
       )}
     </View>
@@ -336,14 +339,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#0f766e',
     marginLeft: 8,
-  },
-  emptyState: {
-    paddingVertical: 30,
-    alignItems: 'center',
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#9ca3af',
   },
   // Selected code styles
   selectedContainer: {
