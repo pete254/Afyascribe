@@ -1,40 +1,40 @@
-// App.js 
+// App.js - Updated with Home Tab + Patient Onboarding
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons'; // ✅ ADD THIS
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+
 import TranscriptionScreen from './src/screens/TranscriptionScreen';
 import SavedNotesScreen from './src/screens/SavedNotesScreen';
 import PatientHistoryScreen from './src/screens/PatientHistoryScreen';
+import PatientDirectoryScreen from './src/screens/PatientDirectoryScreen';
+import HomeScreen from './src/screens/HomeScreen';
+import OnboardPatientScreen from './src/screens/OnboardPatientScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
-
 const Stack = createNativeStackNavigator();
 
-// Main App Component (inside AuthProvider)
 function MainApp() {
   const { isAuthenticated, loading, logout, user } = useAuth();
-  const [activeTab, setActiveTab] = useState('transcription');
-  const [activeScreen, setActiveScreen] = useState('transcription');
+  const [activeTab, setActiveTab] = useState('home');
+  const [activeScreen, setActiveScreen] = useState('home');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [noteToEdit, setNoteToEdit] = useState(null);
 
-  // Show loading spinner while checking auth
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+        <ActivityIndicator size="large" color="#0f766e" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
-  // Show auth screens if not authenticated
   if (!isAuthenticated) {
     return (
       <NavigationContainer>
@@ -54,15 +54,12 @@ function MainApp() {
   };
 
   const goToTranscription = (patient = null) => {
-    if (patient) {
-      setSelectedPatient(patient);
-    }
+    if (patient) setSelectedPatient(patient);
     setActiveScreen('transcription');
     setActiveTab('transcription');
   };
 
   const editNoteWithVoice = (note) => {
-    console.log('✏️ Editing note with voice:', note.id);
     setNoteToEdit(note);
     setSelectedPatient(note.patient);
     setActiveScreen('transcription');
@@ -74,19 +71,66 @@ function MainApp() {
     setActiveTab('saved');
   };
 
+  const goToHome = () => {
+    setActiveScreen('home');
+    setActiveTab('home');
+    setNoteToEdit(null);
+    setSelectedPatient(null);
+  };
+
+  const goToOnboard = () => {
+    setActiveScreen('onboard-patient');
+  };
+
+  const goToPatientDirectory = () => {
+    setActiveScreen('patient-directory');
+  };
+
   const goBack = () => {
-    setActiveScreen(activeTab);
+    const returnTo = activeTab === 'home' ? 'home' : activeTab;
+    setActiveScreen(returnTo);
     setSelectedPatient(null);
     setNoteToEdit(null);
   };
 
-  const clearEditMode = () => {
-    setNoteToEdit(null);
-  };
+  const clearEditMode = () => setNoteToEdit(null);
 
-  // Render active screen
+  const hideTabBar =
+    activeScreen === 'patient-history' || activeScreen === 'onboard-patient' || activeScreen === 'patient-directory';
+
   const renderScreen = () => {
     switch (activeScreen) {
+      case 'home':
+        return (
+          <HomeScreen
+            onOnboardPatient={goToOnboard}
+            onTranscribeNotes={() => {
+              setActiveTab('transcription');
+              setActiveScreen('transcription');
+            }}
+            onViewPatientDirectory={goToPatientDirectory}
+          />
+        );
+
+      case 'onboard-patient':
+        return (
+          <OnboardPatientScreen
+            onBack={goBack}
+            onSuccess={() => {
+              setActiveScreen('home');
+              setActiveTab('home');
+            }}
+          />
+        );
+
+      case 'patient-directory':
+        return (
+          <PatientDirectoryScreen
+            onBack={goBack}
+            onViewPatientHistory={goToPatientHistory}
+          />
+        );
+
       case 'patient-history':
         return (
           <PatientHistoryScreen
@@ -96,6 +140,7 @@ function MainApp() {
             onEditWithVoice={editNoteWithVoice}
           />
         );
+
       case 'saved':
         return (
           <SavedNotesScreen
@@ -104,6 +149,7 @@ function MainApp() {
             onGoToTranscription={goToTranscription}
           />
         );
+
       case 'transcription':
       default:
         return (
@@ -118,36 +164,44 @@ function MainApp() {
     }
   };
 
-  // Show main app if authenticated
   return (
     <View style={styles.container}>
-      {/* Header with User Info */}
+      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>SOAP Notes</Text>
+          <Text style={styles.headerTitle}>AfyaScribe</Text>
           <Text style={styles.headerSubtitle}>
             Welcome, Dr. {user?.firstName || 'User'}
           </Text>
         </View>
-        <TouchableOpacity 
-          style={styles.logoutButton} 
-          onPress={logout}
-        >
-          {/* ✅ ADD LOGOUT ICON */}
+        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
           <Ionicons name="log-out-outline" size={18} color="#475569" />
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Main Content */}
-      <View style={styles.content}>
-        {renderScreen()}
-      </View>
-      
-      {/* Bottom Tab Bar - Hide on Patient History screen */}
-      {activeScreen !== 'patient-history' && (
+      {/* Content */}
+      <View style={styles.content}>{renderScreen()}</View>
+
+      {/* Bottom Tab Bar */}
+      {!hideTabBar && (
         <View style={styles.tabBar}>
-          <TouchableOpacity 
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'home' && styles.activeTab]}
+            onPress={goToHome}
+          >
+            <Ionicons
+              name={activeTab === 'home' ? 'home' : 'home-outline'}
+              size={22}
+              color={activeTab === 'home' ? '#0f766e' : '#94a3b8'}
+            />
+            <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>
+              Home
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'transcription' && styles.activeTab]}
             onPress={() => {
               setActiveTab('transcription');
@@ -155,40 +209,38 @@ function MainApp() {
               setNoteToEdit(null);
             }}
           >
-            {/* ✅ REPLACE EMOJI WITH ICON */}
-            <MaterialCommunityIcons 
-              name="microphone" 
-              size={24} 
-              color={activeTab === 'transcription' ? '#0f766e' : '#64748b'} 
+            <MaterialCommunityIcons
+              name="microphone"
+              size={22}
+              color={activeTab === 'transcription' ? '#0f766e' : '#94a3b8'}
             />
             <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>
               New Note
             </Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'saved' && styles.activeTab]}
             onPress={goToSavedNotes}
           >
-            {/* ✅ REPLACE EMOJI WITH ICON */}
-            <MaterialCommunityIcons 
-              name="note-text-outline" 
-              size={24} 
-              color={activeTab === 'saved' ? '#0f766e' : '#64748b'} 
+            <MaterialCommunityIcons
+              name={activeTab === 'saved' ? 'note-text' : 'note-text-outline'}
+              size={22}
+              color={activeTab === 'saved' ? '#0f766e' : '#94a3b8'}
             />
             <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>
               My Notes
             </Text>
           </TouchableOpacity>
+
         </View>
       )}
-      
+
       <StatusBar style="auto" />
     </View>
   );
 }
 
-// Root App Component (wraps with AuthProvider)
 export default function App() {
   return (
     <AuthProvider>
@@ -198,21 +250,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f8fafc',
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#64748b',
-  },
+  loadingText: { marginTop: 16, fontSize: 16, color: '#64748b' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -226,57 +271,50 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 2,
-  },
+  headerSubtitle: { fontSize: 13, color: '#94a3b8', marginTop: 2 },
   logoutButton: {
-    flexDirection: 'row', // ✅ ADDED
-    alignItems: 'center', // ✅ ADDED
-    gap: 6, // ✅ ADDED
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     backgroundColor: '#f1f5f9',
-    borderRadius: 8,
+    borderRadius: 10,
   },
-  logoutButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  content: {
-    flex: 1,
-  },
+  logoutButtonText: { fontSize: 13, fontWeight: '600', color: '#475569' },
+  content: { flex: 1 },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
-    paddingBottom: 10,
-    paddingTop: 10,
+    paddingBottom: 12,
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 8,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginHorizontal: 2,
   },
-  activeTab: {
-    backgroundColor: '#f1f5f9',
-  },
-  // ✅ REMOVED tabIcon style (not needed anymore)
+  activeTab: { backgroundColor: '#f0fdf9' },
   tabText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
-    color: '#64748b',
-    marginTop: 4, // 
+    color: '#94a3b8',
+    marginTop: 3,
   },
-  activeTabText: {
-    color: '#0f766e', // 
-    fontWeight: '600',
-  },
+  activeTabText: { color: '#0f766e', fontWeight: '700' },
 });

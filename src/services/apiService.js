@@ -1,4 +1,4 @@
-// src/services/apiService.js - COMPLETE & FIXED VERSION
+// src/services/apiService.js
 import storage from '../utils/storage';
 
 class ApiService {
@@ -10,7 +10,7 @@ class ApiService {
 
   async request(endpoint, options = {}) {
     const token = await storage.getToken();
-    
+
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -21,7 +21,7 @@ class ApiService {
     }
 
     const url = `${this.baseURL}${endpoint}`;
-    
+
     console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
 
     try {
@@ -34,7 +34,7 @@ class ApiService {
 
       const contentType = response.headers.get('content-type');
       let data;
-      
+
       if (contentType && contentType.includes('application/json')) {
         data = await response.json();
       } else {
@@ -72,49 +72,45 @@ class ApiService {
   }
 
   async register(userData) {
-    const data = await this.request('/auth/register', {
+    return await this.request('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
-
-    return data;
   }
 
   async logout() {
     await storage.clearAll();
   }
 
-  // ✅ NEW: Request 6-digit reset code
   async requestResetCode(email) {
-    const data = await this.request('/auth/request-reset-code', {
+    return await this.request('/auth/request-reset-code', {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
-
-    return data;
   }
 
-  // ✅ NEW: Verify 6-digit reset code
   async verifyResetCode(email, code) {
-    const data = await this.request('/auth/verify-reset-code', {
+    return await this.request('/auth/verify-reset-code', {
       method: 'POST',
       body: JSON.stringify({ email, code }),
     });
-
-    return data;
   }
 
-  // ✅ NEW: Reset password with 6-digit code
   async resetPasswordWithCode(email, code, newPassword) {
-    const data = await this.request('/auth/reset-password-with-code', {
+    return await this.request('/auth/reset-password-with-code', {
       method: 'POST',
       body: JSON.stringify({ email, code, newPassword }),
     });
-
-    return data;
   }
 
   // ==================== PATIENT ENDPOINTS ====================
+
+  async createPatient(patientData) {
+    return await this.request('/patients', {
+      method: 'POST',
+      body: JSON.stringify(patientData),
+    });
+  }
 
   async searchPatients(query) {
     if (!query || query.trim().length < 2) {
@@ -135,6 +131,20 @@ class ApiService {
     return await this.request(`/patients/${id}`);
   }
 
+  async updatePatient(id, updateData) {
+    return await this.request(`/patients/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async searchPatientsByPhone(phone) {
+    if (!phone || phone.trim().length < 3) return [];
+    return await this.request(
+      `/patients/search/phone?q=${encodeURIComponent(phone)}`
+    );
+  }
+
   // ==================== SOAP NOTES ENDPOINTS ====================
 
   async createSoapNote(noteData) {
@@ -146,7 +156,7 @@ class ApiService {
 
   async getSoapNotes(params = {}) {
     const queryParams = new URLSearchParams();
-    
+
     if (params.page) queryParams.append('page', params.page);
     if (params.limit) queryParams.append('limit', params.limit);
     if (params.status) queryParams.append('status', params.status);
@@ -156,7 +166,7 @@ class ApiService {
 
     const queryString = queryParams.toString();
     const endpoint = queryString ? `/soap-notes?${queryString}` : '/soap-notes';
-    
+
     return await this.request(endpoint);
   }
 
@@ -171,7 +181,6 @@ class ApiService {
     });
   }
 
-  // ✅ FIXED: Added updateSoapNoteStatus method
   async updateSoapNoteStatus(id, status) {
     return await this.request(`/soap-notes/${id}/status`, {
       method: 'PATCH',
@@ -185,108 +194,38 @@ class ApiService {
     });
   }
 
-  // ✅ FIXED: Renamed getPatientNotes to getPatientHistory (matches PatientHistoryScreen usage)
+  async getSoapNotesStatistics() {
+    return await this.request('/soap-notes/statistics');
+  }
+
   async getPatientHistory(patientId) {
     return await this.request(`/soap-notes/patient/${patientId}`);
   }
 
-  // ✅ ADDED: Keep alias for backward compatibility
   async getPatientNotes(patientId) {
     return await this.getPatientHistory(patientId);
   }
 
-  // ✅ FIXED: Added editSoapNoteWithHistory method (used in PatientHistoryScreen)
+  // ==================== ICD-10 ENDPOINTS ====================
+
+async getPopularIcd10Codes() {
+  return await this.request('/icd10/popular');
+}
+
+async searchIcd10Codes(query) {
+  return await this.request(`/icd10/search?q=${encodeURIComponent(query)}`);
+}
+
+async getIcd10Code(code) {
+  return await this.request(`/icd10/${code}`);
+}
+
   async editSoapNoteWithHistory(noteId, updateData) {
     return await this.request(`/soap-notes/${noteId}/edit`, {
       method: 'PATCH',
       body: JSON.stringify(updateData),
     });
   }
-
-  // ✅ ADDED: Get SOAP notes statistics
-  async getSoapNotesStatistics() {
-    return await this.request('/soap-notes/statistics');
-  }
-
-  // ==================== AI FORMATTING ENDPOINT ====================
-
-  async formatWithAI(text, section) {
-    return await this.request('/soap-notes/format', {
-      method: 'POST',
-      body: JSON.stringify({ text, section }),
-    });
-  }
-    // ==================== ICD-10 ENDPOINTS ====================
-
-  /**
-   * Search ICD-10 codes
-   */
-  async searchIcd10Codes(query, limit = 15) {
-    if (!query || query.trim().length < 2) {
-      return [];
-    }
-    
-    try {
-      const response = await this.request(
-        `/icd10/search?q=${encodeURIComponent(query)}&limit=${limit}`
-      );
-      return response;
-    } catch (error) {
-      console.error('❌ ICD-10 search failed:', error);
-      // Return empty array on error so app doesn't crash
-      return [];
-    }
-  }
-
-  /**
-   * Get most popular ICD-10 codes
-   */
-  async getPopularIcd10Codes(limit = 20) {
-    try {
-      return await this.request(`/icd10/popular?limit=${limit}`);
-    } catch (error) {
-      console.error('❌ Failed to get popular ICD-10 codes:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get ICD-10 code details
-   */
-  async getIcd10CodeDetails(code) {
-    try {
-      return await this.request(`/icd10/code/${code}`);
-    } catch (error) {
-      console.error(`❌ Failed to get ICD-10 code ${code}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Validate ICD-10 code format
-   */
-  async validateIcd10Code(code) {
-    try {
-      return await this.request(`/icd10/validate/${code}`);
-    } catch (error) {
-      console.error('❌ ICD-10 validation failed:', error);
-      return { valid: false, message: 'Validation failed' };
-    }
-  }
-
-  /**
-   * Get codes by chapter
-   */
-  async getIcd10ByChapter(chapterCode, limit = 50) {
-    try {
-      return await this.request(`/icd10/chapter/${chapterCode}?limit=${limit}`);
-    } catch (error) {
-      console.error('❌ Failed to get ICD-10 codes by chapter:', error);
-      return [];
-    }
-  }
 }
-
-
 
 export default new ApiService();
