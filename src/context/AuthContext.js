@@ -1,4 +1,6 @@
 // src/context/AuthContext.js
+// UPDATED: user now carries facilityId, facilityCode, facilityName
+// Added registerWithInviteCode() for the new staff onboarding flow
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import apiService from '../services/apiService';
 import storage from '../utils/storage';
@@ -10,7 +12,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check if user is logged in on app start
   useEffect(() => {
     checkAuthStatus();
   }, []);
@@ -36,52 +37,66 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ── LOGIN ──────────────────────────────────────────────────────────────────
+
   const login = async (email, password) => {
     try {
       setLoading(true);
       const response = await apiService.login(email, password);
-      
+
+      // response.user now includes facilityId, facilityCode, facilityName
+      await storage.setToken(response.access_token);
+      await storage.setUser(response.user);
+
       setUser(response.user);
       setIsAuthenticated(true);
-      
+
       return { success: true, user: response.user };
     } catch (error) {
       console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Login failed. Please check your credentials.' 
+      return {
+        success: false,
+        error: error.message || 'Login failed. Please check your credentials.',
       };
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (userData) => {
+  // ── REGISTER WITH INVITE CODE (new staff flow) ─────────────────────────────
+
+  const registerWithInviteCode = async (userData) => {
     try {
       setLoading(true);
-      const response = await apiService.register(userData);
-      
-      // After registration, auto-login
-      if (response.email) {
-        return await login(userData.email, userData.password);
-      }
-      
-      return { success: true, user: response };
+      // userData = { inviteCode, email, password, firstName, lastName, role }
+      const response = await apiService.registerWithInviteCode(userData);
+
+      // Backend returns JWT + user immediately after registration
+      await storage.setToken(response.access_token);
+      await storage.setUser(response.user);
+
+      setUser(response.user);
+      setIsAuthenticated(true);
+
+      return { success: true, user: response.user };
     } catch (error) {
       console.error('Registration error:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Registration failed. Please try again.' 
+      return {
+        success: false,
+        error: error.message || 'Registration failed. Please check your invite code.',
       };
     } finally {
       setLoading(false);
     }
   };
+
+  // ── LOGOUT ─────────────────────────────────────────────────────────────────
 
   const logout = async () => {
     try {
       setLoading(true);
-      await apiService.logout();
+      await storage.removeToken();
+      await storage.removeUser();
       setUser(null);
       setIsAuthenticated(false);
       return { success: true };
@@ -94,11 +109,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = {
-    user,
+    user,          // { id, email, firstName, lastName, role, facilityId, facilityCode, facilityName }
     loading,
     isAuthenticated,
     login,
-    register,
+    registerWithInviteCode,
     logout,
     refreshAuth: checkAuthStatus,
   };
@@ -106,12 +121,9 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
 

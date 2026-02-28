@@ -1,4 +1,7 @@
-// src/screens/AuthScreen.js - Updated with password visibility toggle
+// src/screens/AuthScreen.js
+// UPDATED: Sign-up now uses invite code flow (2 steps)
+// Step 1: Enter invite code → validate → show facility name
+// Step 2: Enter personal details + role → register
 import React, { useState } from 'react';
 import {
   View,
@@ -11,228 +14,319 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Image
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
+import apiService from '../services/apiService';
+
+const ROLES = [
+  { value: 'doctor', label: '👨‍⚕️ Doctor' },
+  { value: 'nurse', label: '👩‍⚕️ Nurse' },
+  { value: 'receptionist', label: '🗂️ Receptionist' },
+];
 
 export default function AuthScreen({ navigation }) {
-  const [isLogin, setIsLogin] = useState(true);
+  // 'login' | 'invite-code' | 'register-details'
+  const [mode, setMode] = useState('login');
+
+  // Login fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  // ✅ NEW: Password visibility state
   const [showPassword, setShowPassword] = useState(false);
 
-  const { login, register } = useAuth();
+  // Invite code step
+  const [inviteCode, setInviteCode] = useState('');
+  const [facilityInfo, setFacilityInfo] = useState(null); // { facilityName, facilityCode }
 
-  const handleSubmit = async () => {
-    // Validation
+  // Register details step
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('doctor');
+
+  const [loading, setLoading] = useState(false);
+
+  const { login, registerWithInviteCode } = useAuth();
+
+  // ── LOGIN ──────────────────────────────────────────────────────────────────
+
+  const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Error', 'Please enter email and password');
       return;
     }
+    setLoading(true);
+    const result = await login(email.trim(), password);
+    setLoading(false);
+    if (!result.success) Alert.alert('Login Failed', result.error);
+  };
 
-    if (!isLogin && (!firstName.trim() || !lastName.trim())) {
-      Alert.alert('Error', 'Please enter your full name');
+  // ── INVITE CODE STEP ───────────────────────────────────────────────────────
+
+  const handleValidateInviteCode = async () => {
+    const code = inviteCode.trim().toUpperCase();
+    if (code.length !== 8) {
+      Alert.alert('Invalid Code', 'Invite codes are 8 characters long');
       return;
     }
-
     setLoading(true);
-
     try {
-      let result;
-
-      if (isLogin) {
-        // Login
-        result = await login(email.trim(), password);
-      } else {
-        // Register
-        result = await register({
-          email: email.trim(),
-          password,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          role: 'doctor', // Default role
-        });
-      }
-
-      if (!result.success) {
-        Alert.alert('Error', result.error || 'Authentication failed');
-      }
-      // If successful, AuthContext will handle navigation
+      const result = await apiService.validateInviteCode(code);
+      setFacilityInfo(result);
+      setMode('register-details');
     } catch (error) {
-      Alert.alert('Error', error.message || 'Something went wrong');
+      Alert.alert('Invalid Code', error.message || 'This invite code is invalid or has expired.');
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleMode = () => {
-    setIsLogin(!isLogin);
-    // Clear form
-    setEmail('');
-    setPassword('');
-    setFirstName('');
-    setLastName('');
-    setShowPassword(false);
+  // ── REGISTER ───────────────────────────────────────────────────────────────
+
+  const handleRegister = async () => {
+    if (!firstName.trim() || !lastName.trim() || !regEmail.trim() || !regPassword.trim()) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+    if (regPassword.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters');
+      return;
+    }
+
+    setLoading(true);
+    const result = await registerWithInviteCode({
+      inviteCode: inviteCode.trim().toUpperCase(),
+      email: regEmail.trim(),
+      password: regPassword,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      role: selectedRole,
+    });
+    setLoading(false);
+
+    if (!result.success) Alert.alert('Registration Failed', result.error);
+    // On success AuthContext sets isAuthenticated = true → app navigates automatically
   };
 
-  // ✅ NEW: Navigate to Forgot Password screen
-  const handleForgotPassword = () => {
-    // For standalone stack navigator
-    if (navigation && navigation.navigate) {
-      navigation.navigate('ForgotPassword');
-    } else {
-      // For tab/nested navigators - you may need to adjust this
-      Alert.alert('Info', 'Forgot password feature coming soon!');
-    }
+  const resetToLogin = () => {
+    setMode('login');
+    setInviteCode('');
+    setFacilityInfo(null);
+    setFirstName('');
+    setLastName('');
+    setRegEmail('');
+    setRegPassword('');
+    setSelectedRole('doctor');
   };
+
+  // ── RENDER ─────────────────────────────────────────────────────────────────
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.content}>
+
           {/* Header */}
           <View style={styles.header}>
-            <Image 
-              source={require('../../assets/splash.png')} 
-              style={styles.logoImage}
-              />
+            <Text style={styles.logo}>🏥</Text>
             <Text style={styles.title}>AfyaScribe</Text>
             <Text style={styles.subtitle}>
-              {isLogin ? 'Sign in to continue' : 'Create your account'}
+              {mode === 'login' && 'Sign in to your account'}
+              {mode === 'invite-code' && 'Enter your facility invite code'}
+              {mode === 'register-details' && `Joining: ${facilityInfo?.facilityName}`}
             </Text>
           </View>
 
-          {/* Form */}
-          <View style={styles.form}>
-            {/* First Name & Last Name (Register only) */}
-            {!isLogin && (
-              <View style={styles.nameRow}>
-                <View style={styles.nameInputContainer}>
-                  <Text style={styles.label}>First Name</Text>
-                  <TextInput
-                    style={styles.nameInput}
-                    placeholder="John"
-                    value={firstName}
-                    onChangeText={setFirstName}
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                </View>
-
-                <View style={styles.nameInputContainer}>
-                  <Text style={styles.label}>Last Name</Text>
-                  <TextInput
-                    style={styles.nameInput}
-                    placeholder="Doe"
-                    value={lastName}
-                    onChangeText={setLastName}
-                    autoCapitalize="words"
-                    editable={!loading}
-                  />
-                </View>
-              </View>
-            )}
-
-            {/* Email */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="doctor@example.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                editable={!loading}
-              />
-            </View>
-
-            {/* Password with visibility toggle */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
+          {/* ── LOGIN FORM ────────────────────────────────────────────────── */}
+          {mode === 'login' && (
+            <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Email</Text>
                 <TextInput
-                  style={styles.passwordInput}
-                  placeholder={isLogin ? 'Enter password' : 'Min. 8 characters'}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="doctor@hospital.go.ke"
+                  keyboardType="email-address"
                   autoCapitalize="none"
-                  editable={!loading}
                 />
-                {/* ✅ NEW: Eye icon to toggle password visibility */}
-                <TouchableOpacity
-                  style={styles.eyeIcon}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                <Ionicons 
-                  name={showPassword ? "eye-outline" : "eye-off-outline"} 
-                  size={22} 
-                  color="#64748b" 
-                />
-                </TouchableOpacity>
               </View>
-              {!isLogin && (
-                <Text style={styles.hint}>
-                  Must contain uppercase, lowercase, and number
-                </Text>
-              )}
-            </View>
 
-            {/* ✅ NEW: Forgot Password link (Login mode only) */}
-            {isLogin && (
-              <TouchableOpacity 
-                style={styles.forgotPasswordContainer}
-                onPress={handleForgotPassword}
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter password"
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIcon}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#64748b" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.forgotContainer}
+                onPress={() => navigation.navigate('ForgotPassword')}
+              >
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, loading && styles.buttonDisabled]}
+                onPress={handleLogin}
                 disabled={loading}
               >
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Sign In</Text>
+                )}
               </TouchableOpacity>
-            )}
 
-            {/* Submit Button */}
-            <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitButtonText}>
-                  {isLogin ? 'Sign In' : 'Create Account'}
-                </Text>
-              )}
-            </TouchableOpacity>
+              <View style={styles.divider}>
+                <Text style={styles.dividerText}>New staff member?</Text>
+              </View>
 
-            {/* Toggle Mode */}
-            <View style={styles.toggleContainer}>
-              <Text style={styles.toggleText}>
-                {isLogin ? "Don't have an account? " : 'Already have an account? '}
-              </Text>
-              <TouchableOpacity onPress={toggleMode} disabled={loading}>
-                <Text style={styles.toggleButton}>
-                  {isLogin ? 'Sign Up' : 'Sign In'}
-                </Text>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setMode('invite-code')}
+              >
+                <Text style={styles.secondaryButtonText}>Join with Invite Code</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          )}
 
-          {/* Demo Credentials (for testing) */}
-          {isLogin}
+          {/* ── INVITE CODE FORM ───────────────────────────────────────────── */}
+          {mode === 'invite-code' && (
+            <View style={styles.form}>
+              <Text style={styles.infoText}>
+                Ask your facility administrator for an 8-character invite code to create your account.
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Invite Code</Text>
+                <TextInput
+                  style={[styles.input, styles.codeInput]}
+                  value={inviteCode}
+                  onChangeText={(t) => setInviteCode(t.toUpperCase())}
+                  placeholder="AB3X9K2M"
+                  autoCapitalize="characters"
+                  maxLength={8}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, loading && styles.buttonDisabled]}
+                onPress={handleValidateInviteCode}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Verify Code</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.backButton} onPress={resetToLogin}>
+                <Ionicons name="arrow-back" size={18} color="#64748b" />
+                <Text style={styles.backButtonText}>Back to Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ── REGISTER DETAILS FORM ─────────────────────────────────────── */}
+          {mode === 'register-details' && (
+            <View style={styles.form}>
+              {/* Facility badge */}
+              <View style={styles.facilityBadge}>
+                <Text style={styles.facilityBadgeLabel}>Joining facility</Text>
+                <Text style={styles.facilityBadgeName}>{facilityInfo?.facilityName}</Text>
+                <Text style={styles.facilityBadgeCode}>Code: {facilityInfo?.facilityCode}</Text>
+              </View>
+
+              <View style={styles.nameRow}>
+                <View style={[styles.inputContainer, { flex: 1 }]}>
+                  <Text style={styles.label}>First Name</Text>
+                  <TextInput style={styles.input} value={firstName} onChangeText={setFirstName} placeholder="John" />
+                </View>
+                <View style={[styles.inputContainer, { flex: 1 }]}>
+                  <Text style={styles.label}>Last Name</Text>
+                  <TextInput style={styles.input} value={lastName} onChangeText={setLastName} placeholder="Doe" />
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Work Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={regEmail}
+                  onChangeText={setRegEmail}
+                  placeholder="john.doe@hospital.go.ke"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={regPassword}
+                    onChangeText={setRegPassword}
+                    placeholder="Min 8 characters"
+                    secureTextEntry={!showRegPassword}
+                  />
+                  <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowRegPassword(!showRegPassword)}>
+                    <Ionicons name={showRegPassword ? 'eye-off' : 'eye'} size={22} color="#64748b" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Role</Text>
+                <View style={styles.roleRow}>
+                  {ROLES.map((r) => (
+                    <TouchableOpacity
+                      key={r.value}
+                      style={[styles.roleChip, selectedRole === r.value && styles.roleChipActive]}
+                      onPress={() => setSelectedRole(r.value)}
+                    >
+                      <Text style={[styles.roleChipText, selectedRole === r.value && styles.roleChipTextActive]}>
+                        {r.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, loading && styles.buttonDisabled]}
+                onPress={handleRegister}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Create Account</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.backButton} onPress={() => setMode('invite-code')}>
+                <Ionicons name="arrow-back" size={18} color="#64748b" />
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -240,175 +334,105 @@ export default function AuthScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
-  },
+  container: { flex: 1, backgroundColor: '#f1f5f9' },
+  scrollContent: { flexGrow: 1 },
+  content: { flex: 1, justifyContent: 'center', padding: 24 },
+  header: { alignItems: 'center', marginBottom: 32 },
+  logo: { fontSize: 64, marginBottom: 12 },
+  title: { fontSize: 30, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
+  subtitle: { fontSize: 15, color: '#64748b', textAlign: 'center' },
   form: {
     backgroundColor: '#fff',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  nameRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  nameInputContainer: {
-    flex: 1,
-  },
-  nameInput: {
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1e293b',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
-    marginBottom: 8,
-  },
+  infoText: { fontSize: 14, color: '#64748b', marginBottom: 20, lineHeight: 20 },
+  inputContainer: { marginBottom: 18 },
+  label: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 8 },
   input: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     fontSize: 16,
     color: '#1e293b',
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  // ✅ NEW: Password container with eye icon
+  codeInput: {
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 6,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  passwordInput: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-    color: '#1e293b',
-  },
-  eyeIcon: {
-    padding: 16,
-  },
-  eyeIconText: {
-    fontSize: 20,
-  },
-  hint: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 6,
-  },
-  // ✅ NEW: Forgot password link
-  forgotPasswordContainer: {
-    alignItems: 'flex-end',
-    marginBottom: 16,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: '#3b82f6',
-    fontWeight: '600',
-  },
-  submitButton: {
-    backgroundColor: '#3b82f6',
+  passwordInput: { flex: 1, padding: 14, fontSize: 16, color: '#1e293b' },
+  eyeIcon: { padding: 14 },
+  forgotContainer: { alignItems: 'flex-end', marginBottom: 20 },
+  forgotText: { fontSize: 13, color: '#3b82f6', fontWeight: '600' },
+  nameRow: { flexDirection: 'row', gap: 12 },
+  primaryButton: {
+    backgroundColor: '#0f766e',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
+    marginTop: 4,
+  },
+  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonDisabled: { backgroundColor: '#94a3b8' },
+  secondaryButton: {
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#0f766e',
     marginTop: 8,
   },
-  submitButtonDisabled: {
-    backgroundColor: '#94a3b8',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  toggleContainer: {
+  secondaryButtonText: { color: '#0f766e', fontSize: 16, fontWeight: '600' },
+  divider: { alignItems: 'center', marginVertical: 16 },
+  dividerText: { fontSize: 14, color: '#94a3b8' },
+  backButton: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 24,
+    marginTop: 16,
+    gap: 4,
   },
-  toggleText: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  toggleButton: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3b82f6',
-  },
-  demoContainer: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#fef3c7',
+  backButtonText: { fontSize: 14, color: '#64748b', fontWeight: '500' },
+  facilityBadge: {
+    backgroundColor: '#f0fdf4',
     borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
     alignItems: 'center',
   },
-  demoText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#92400e',
-    marginBottom: 4,
+  facilityBadgeLabel: { fontSize: 12, color: '#15803d', fontWeight: '600', marginBottom: 4 },
+  facilityBadgeName: { fontSize: 18, fontWeight: '800', color: '#14532d', marginBottom: 2 },
+  facilityBadgeCode: { fontSize: 12, color: '#16a34a' },
+  roleRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  roleChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
   },
-  logoImage: {
-    width: 160,
-    height: 160,
-    marginBottom: 16,
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  demoCredentials: {
-    fontSize: 13,
-    color: '#92400e',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  eyeIcon: {
-  padding: 16,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
+  roleChipActive: { borderColor: '#0f766e', backgroundColor: '#f0fdf4' },
+  roleChipText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  roleChipTextActive: { color: '#0f766e', fontWeight: '700' },
 });

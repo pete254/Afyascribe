@@ -103,6 +103,90 @@ class ApiService {
     });
   }
 
+  // ==================== INVITE CODE ENDPOINTS ====================
+
+  /**
+   * Check if an invite code is valid before showing the full sign-up form.
+   * Returns { facilityId, facilityName, facilityCode } or throws an error.
+   */
+  async validateInviteCode(code) {
+    return await this.request(`/auth/validate-invite/${code.toUpperCase().trim()}`);
+  }
+
+  /**
+   * Register a new staff member using a facility invite code.
+   * Returns { access_token, user } — user is logged in immediately after.
+   *
+   * @param {Object} userData
+   * @param {string} userData.inviteCode   - 8-char code e.g. "AB3X9K2M"
+   * @param {string} userData.email
+   * @param {string} userData.password
+   * @param {string} userData.firstName
+   * @param {string} userData.lastName
+   * @param {string} userData.role         - 'doctor' | 'nurse' | 'receptionist'
+   */
+  async registerWithInviteCode(userData) {
+    return await this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  // ==================== FACILITY ADMIN ENDPOINTS ====================
+
+  /**
+   * Get current active invite code for my facility (facility_admin only).
+   */
+  async getMyInviteCode() {
+    return await this.request('/facility/users/invite-code');
+  }
+
+  /**
+   * Generate or regenerate invite code for my facility (facility_admin only).
+   * The old code is immediately invalidated.
+   */
+  async regenerateInviteCode() {
+    return await this.request('/facility/users/invite-code/generate', {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * List all staff in my facility (facility_admin only).
+   */
+  async getFacilityStaff() {
+    return await this.request('/facility/users');
+  }
+
+  /**
+   * Create a staff account directly (facility_admin only, no invite code).
+   */
+  async createStaff(staffData) {
+    return await this.request('/facility/users', {
+      method: 'POST',
+      body: JSON.stringify(staffData),
+    });
+  }
+
+  /**
+   * Deactivate a staff member.
+   */
+  async deactivateStaff(userId, reason) {
+    return await this.request(`/facility/users/${userId}/deactivate`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /**
+   * Reactivate a staff member.
+   */
+  async reactivateStaff(userId) {
+    return await this.request(`/facility/users/${userId}/reactivate`, {
+      method: 'PATCH',
+    });
+  }
+
   // ==================== PATIENT ENDPOINTS ====================
 
   async createPatient(patientData) {
