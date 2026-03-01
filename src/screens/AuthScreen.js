@@ -1,7 +1,5 @@
 // src/screens/AuthScreen.js
-// UPDATED: Sign-up now uses invite code flow (2 steps)
-// Step 1: Enter invite code → validate → show facility name
-// Step 2: Enter personal details + role → register
+// UPDATED: Added "Register Facility" button on login screen
 import React, { useState } from 'react';
 import {
   View,
@@ -36,7 +34,7 @@ export default function AuthScreen({ navigation }) {
 
   // Invite code step
   const [inviteCode, setInviteCode] = useState('');
-  const [facilityInfo, setFacilityInfo] = useState(null); // { facilityName, facilityCode }
+  const [facilityInfo, setFacilityInfo] = useState(null);
 
   // Register details step
   const [firstName, setFirstName] = useState('');
@@ -107,7 +105,6 @@ export default function AuthScreen({ navigation }) {
     setLoading(false);
 
     if (!result.success) Alert.alert('Registration Failed', result.error);
-    // On success AuthContext sets isAuthenticated = true → app navigates automatically
   };
 
   const resetToLogin = () => {
@@ -195,6 +192,7 @@ export default function AuthScreen({ navigation }) {
                 )}
               </TouchableOpacity>
 
+              {/* Divider */}
               <View style={styles.divider}>
                 <Text style={styles.dividerText}>New staff member?</Text>
               </View>
@@ -204,6 +202,21 @@ export default function AuthScreen({ navigation }) {
                 onPress={() => setMode('invite-code')}
               >
                 <Text style={styles.secondaryButtonText}>Join with Invite Code</Text>
+              </TouchableOpacity>
+
+              {/* Register Facility */}
+              <View style={styles.facilityDivider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.facilityDividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                style={styles.facilityButton}
+                onPress={() => navigation.navigate('RegisterFacility')}
+              >
+                <Ionicons name="business-outline" size={18} color="#0f766e" />
+                <Text style={styles.facilityButtonText}>Register Your Facility</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -403,6 +416,40 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: '#0f766e', fontSize: 16, fontWeight: '600' },
   divider: { alignItems: 'center', marginVertical: 16 },
   dividerText: { fontSize: 14, color: '#94a3b8' },
+
+  // ── Register Facility section ──────────────────────────────────────────────
+  facilityDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e2e8f0',
+  },
+  facilityDividerText: {
+    fontSize: 13,
+    color: '#94a3b8',
+  },
+  facilityButton: {
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  facilityButtonText: {
+    color: '#0f766e',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',

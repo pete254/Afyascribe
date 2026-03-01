@@ -8,9 +8,14 @@ const USER_KEY = '@user_data';
  * Storage utility for managing authentication tokens and user data
  */
 const storage = {
-  /**
-   * Save authentication token
-   */
+
+  // ── TOKEN ──────────────────────────────────────────────────────────────────
+
+  /** Alias for saveToken — used by AuthContext */
+  async setToken(token) {
+    return this.saveToken(token);
+  },
+
   async saveToken(token) {
     try {
       await AsyncStorage.setItem(TOKEN_KEY, token);
@@ -21,9 +26,6 @@ const storage = {
     }
   },
 
-  /**
-   * Get authentication token
-   */
   async getToken() {
     try {
       const token = await AsyncStorage.getItem(TOKEN_KEY);
@@ -34,9 +36,6 @@ const storage = {
     }
   },
 
-  /**
-   * Remove authentication token
-   */
   async removeToken() {
     try {
       await AsyncStorage.removeItem(TOKEN_KEY);
@@ -47,9 +46,13 @@ const storage = {
     }
   },
 
-  /**
-   * Save user data
-   */
+  // ── USER ───────────────────────────────────────────────────────────────────
+
+  /** Alias for saveUser — used by AuthContext */
+  async setUser(userData) {
+    return this.saveUser(userData);
+  },
+
   async saveUser(userData) {
     try {
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
@@ -60,9 +63,6 @@ const storage = {
     }
   },
 
-  /**
-   * Get user data
-   */
   async getUser() {
     try {
       const userData = await AsyncStorage.getItem(USER_KEY);
@@ -73,9 +73,6 @@ const storage = {
     }
   },
 
-  /**
-   * Remove user data
-   */
   async removeUser() {
     try {
       await AsyncStorage.removeItem(USER_KEY);
@@ -86,9 +83,8 @@ const storage = {
     }
   },
 
-  /**
-   * Clear all stored data (logout)
-   */
+  // ── MISC ───────────────────────────────────────────────────────────────────
+
   async clearAll() {
     try {
       await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
@@ -99,9 +95,6 @@ const storage = {
     }
   },
 
-  /**
-   * Check if user is authenticated
-   */
   async isAuthenticated() {
     try {
       const token = await this.getToken();
@@ -110,7 +103,7 @@ const storage = {
       console.error('Error checking authentication:', error);
       return false;
     }
-  }
+  },
 };
 
 export default storage;

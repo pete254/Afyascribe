@@ -1,4 +1,4 @@
-// App.js - Updated with Home Tab + Patient Onboarding
+// App.js - Updated with Patient Queue module
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
@@ -15,6 +15,11 @@ import OnboardPatientScreen from './src/screens/OnboardPatientScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
+import RegisterFacilityScreen from './src/screens/RegisterFacilityScreen';
+import QueuePatientScreen from './src/screens/QueuePatientScreen';
+import QueueScreen from './src/screens/QueueScreen';
+import MyQueueScreen from './src/screens/MyQueueScreen';
+import TriageScreen from './src/screens/TriageScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 const Stack = createNativeStackNavigator();
@@ -25,6 +30,8 @@ function MainApp() {
   const [activeScreen, setActiveScreen] = useState('home');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [noteToEdit, setNoteToEdit] = useState(null);
+  const [triageVisit, setTriageVisit] = useState(null); // visit passed to TriageScreen
+  const [soapVisit, setSoapVisit] = useState(null);     // visit context passed to TranscriptionScreen
 
   if (loading) {
     return (
@@ -42,12 +49,32 @@ function MainApp() {
           <Stack.Screen name="Auth" component={AuthScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          <Stack.Screen name="RegisterFacility" component={RegisterFacilityScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     );
   }
 
-  // Navigation handlers
+  // ── Navigation helpers ─────────────────────────────────────────────────────
+
+  const goToHome = () => {
+    setActiveScreen('home');
+    setActiveTab('home');
+    setNoteToEdit(null);
+    setSelectedPatient(null);
+    setTriageVisit(null);
+    setSoapVisit(null);
+  };
+
+  const goBack = () => {
+    const returnTo = activeTab === 'home' ? 'home' : activeTab;
+    setActiveScreen(returnTo);
+    setSelectedPatient(null);
+    setNoteToEdit(null);
+    setTriageVisit(null);
+    setSoapVisit(null);
+  };
+
   const goToPatientHistory = (patient) => {
     setSelectedPatient(patient);
     setActiveScreen('patient-history');
@@ -71,44 +98,80 @@ function MainApp() {
     setActiveTab('saved');
   };
 
-  const goToHome = () => {
-    setActiveScreen('home');
-    setActiveTab('home');
-    setNoteToEdit(null);
-    setSelectedPatient(null);
+  const goToOnboard = () => setActiveScreen('onboard-patient');
+  const goToPatientDirectory = () => setActiveScreen('patient-directory');
+  const goToQueuePatient = () => setActiveScreen('queue-patient');
+  const goToQueue = () => setActiveScreen('queue');
+  const goToMyQueue = () => setActiveScreen('my-queue');
+
+  const goToTriage = (visit = null) => {
+    setTriageVisit(visit);
+    setActiveScreen('triage');
   };
 
-  const goToOnboard = () => {
-    setActiveScreen('onboard-patient');
-  };
-
-  const goToPatientDirectory = () => {
-    setActiveScreen('patient-directory');
-  };
-
-  const goBack = () => {
-    const returnTo = activeTab === 'home' ? 'home' : activeTab;
-    setActiveScreen(returnTo);
-    setSelectedPatient(null);
-    setNoteToEdit(null);
+  // When doctor taps "Open & Write SOAP" from MyQueueScreen
+  const openSoapFromQueue = (visit) => {
+    setSoapVisit(visit);
+    setSelectedPatient(visit.patient);
+    setActiveScreen('transcription');
+    setActiveTab('transcription');
   };
 
   const clearEditMode = () => setNoteToEdit(null);
 
-  const hideTabBar =
-    activeScreen === 'patient-history' || activeScreen === 'onboard-patient' || activeScreen === 'patient-directory';
+  // ── Tab bar visibility ─────────────────────────────────────────────────────
+  const hideTabBar = [
+    'patient-history', 'onboard-patient', 'patient-directory',
+    'queue-patient', 'queue', 'my-queue', 'triage',
+  ].includes(activeScreen);
 
+  // ── Screen renderer ────────────────────────────────────────────────────────
   const renderScreen = () => {
     switch (activeScreen) {
+
       case 'home':
         return (
           <HomeScreen
             onOnboardPatient={goToOnboard}
-            onTranscribeNotes={() => {
-              setActiveTab('transcription');
-              setActiveScreen('transcription');
-            }}
+            onTranscribeNotes={goToTranscription}
             onViewPatientDirectory={goToPatientDirectory}
+            onQueuePatient={goToQueuePatient}
+            onViewQueue={goToQueue}
+            onViewMyQueue={goToMyQueue}
+            onViewTriageQueue={() => goToTriage(null)}
+          />
+        );
+
+      case 'queue-patient':
+        return (
+          <QueuePatientScreen
+            onBack={goBack}
+            onSuccess={goToHome}
+          />
+        );
+
+      case 'queue':
+        return (
+          <QueueScreen
+            onBack={goBack}
+            onTriagePatient={(visit) => goToTriage(visit)}
+          />
+        );
+
+      case 'my-queue':
+        return (
+          <MyQueueScreen
+            onBack={goBack}
+            onOpenSoapNote={openSoapFromQueue}
+            onTriagePatient={(visit) => goToTriage(visit)}
+          />
+        );
+
+      case 'triage':
+        return (
+          <TriageScreen
+            onBack={goBack}
+            preselectedVisit={triageVisit}
           />
         );
 
@@ -116,10 +179,7 @@ function MainApp() {
         return (
           <OnboardPatientScreen
             onBack={goBack}
-            onSuccess={() => {
-              setActiveScreen('home');
-              setActiveTab('home');
-            }}
+            onSuccess={goToHome}
           />
         );
 
@@ -156,6 +216,7 @@ function MainApp() {
           <TranscriptionScreen
             preselectedPatient={selectedPatient}
             noteToEdit={noteToEdit}
+            visitContext={soapVisit}        // ← triage data + reason pre-filled
             onViewPatientHistory={goToPatientHistory}
             onClearPatient={() => setSelectedPatient(null)}
             onClearNote={clearEditMode}
@@ -171,7 +232,7 @@ function MainApp() {
         <View>
           <Text style={styles.headerTitle}>AfyaScribe</Text>
           <Text style={styles.headerSubtitle}>
-            Welcome, Dr. {user?.firstName || 'User'}
+            {user?.role === 'doctor' ? `Dr. ${user?.firstName}` : user?.firstName || 'User'}
           </Text>
         </View>
         <TouchableOpacity style={styles.logoutButton} onPress={logout}>
@@ -196,27 +257,46 @@ function MainApp() {
               size={22}
               color={activeTab === 'home' ? '#0f766e' : '#94a3b8'}
             />
-            <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>
-              Home
-            </Text>
+            <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>Home</Text>
           </TouchableOpacity>
+
+          {/* Doctors see My Queue tab; others see Queue tab */}
+          {user?.role === 'doctor' ? (
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'my-queue' && styles.activeTab]}
+              onPress={() => { setActiveTab('my-queue'); goToMyQueue(); }}
+            >
+              <MaterialCommunityIcons
+                name="account-clock-outline"
+                size={22}
+                color={activeTab === 'my-queue' ? '#0f766e' : '#94a3b8'}
+              />
+              <Text style={[styles.tabText, activeTab === 'my-queue' && styles.activeTabText]}>My Queue</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'queue' && styles.activeTab]}
+              onPress={() => { setActiveTab('queue'); goToQueue(); }}
+            >
+              <MaterialCommunityIcons
+                name="clipboard-list-outline"
+                size={22}
+                color={activeTab === 'queue' ? '#0f766e' : '#94a3b8'}
+              />
+              <Text style={[styles.tabText, activeTab === 'queue' && styles.activeTabText]}>Queue</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.tab, activeTab === 'transcription' && styles.activeTab]}
-            onPress={() => {
-              setActiveTab('transcription');
-              setActiveScreen('transcription');
-              setNoteToEdit(null);
-            }}
+            onPress={() => { setActiveTab('transcription'); setActiveScreen('transcription'); setNoteToEdit(null); setSoapVisit(null); }}
           >
             <MaterialCommunityIcons
               name="microphone"
               size={22}
               color={activeTab === 'transcription' ? '#0f766e' : '#94a3b8'}
             />
-            <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>
-              New Note
-            </Text>
+            <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>New Note</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -228,9 +308,7 @@ function MainApp() {
               size={22}
               color={activeTab === 'saved' ? '#0f766e' : '#94a3b8'}
             />
-            <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>
-              My Notes
-            </Text>
+            <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>My Notes</Text>
           </TouchableOpacity>
 
         </View>
@@ -251,70 +329,30 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-  },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
   loadingText: { marginTop: 16, fontSize: 16, color: '#64748b' },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 50, paddingBottom: 16,
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0f172a',
-    letterSpacing: -0.5,
-  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#0f172a', letterSpacing: -0.5 },
   headerSubtitle: { fontSize: 13, color: '#94a3b8', marginTop: 2 },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 8, paddingHorizontal: 14, backgroundColor: '#f1f5f9', borderRadius: 10,
   },
   logoutButtonText: { fontSize: 13, fontWeight: '600', color: '#475569' },
   content: { flex: 1 },
   tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingBottom: 12,
-    paddingTop: 8,
-    paddingHorizontal: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 8,
+    flexDirection: 'row', backgroundColor: '#ffffff',
+    borderTopWidth: 1, borderTopColor: '#e2e8f0',
+    paddingBottom: 12, paddingTop: 8, paddingHorizontal: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 8,
   },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginHorizontal: 2,
-  },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 12, marginHorizontal: 2 },
   activeTab: { backgroundColor: '#f0fdf9' },
-  tabText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#94a3b8',
-    marginTop: 3,
-  },
+  tabText: { fontSize: 11, fontWeight: '500', color: '#94a3b8', marginTop: 3 },
   activeTabText: { color: '#0f766e', fontWeight: '700' },
 });

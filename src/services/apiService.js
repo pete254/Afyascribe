@@ -21,15 +21,10 @@ class ApiService {
     }
 
     const url = `${this.baseURL}${endpoint}`;
-
     console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
 
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
+      const response = await fetch(url, { ...options, headers });
       console.log(`📡 API Response: ${response.status} ${response.statusText}`);
 
       const contentType = response.headers.get('content-type');
@@ -62,12 +57,10 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-
     if (data.access_token) {
       await storage.saveToken(data.access_token);
       await storage.saveUser(data.user);
     }
-
     return data;
   }
 
@@ -105,26 +98,10 @@ class ApiService {
 
   // ==================== INVITE CODE ENDPOINTS ====================
 
-  /**
-   * Check if an invite code is valid before showing the full sign-up form.
-   * Returns { facilityId, facilityName, facilityCode } or throws an error.
-   */
   async validateInviteCode(code) {
     return await this.request(`/auth/validate-invite/${code.toUpperCase().trim()}`);
   }
 
-  /**
-   * Register a new staff member using a facility invite code.
-   * Returns { access_token, user } — user is logged in immediately after.
-   *
-   * @param {Object} userData
-   * @param {string} userData.inviteCode   - 8-char code e.g. "AB3X9K2M"
-   * @param {string} userData.email
-   * @param {string} userData.password
-   * @param {string} userData.firstName
-   * @param {string} userData.lastName
-   * @param {string} userData.role         - 'doctor' | 'nurse' | 'receptionist'
-   */
   async registerWithInviteCode(userData) {
     return await this.request('/auth/register', {
       method: 'POST',
@@ -134,33 +111,20 @@ class ApiService {
 
   // ==================== FACILITY ADMIN ENDPOINTS ====================
 
-  /**
-   * Get current active invite code for my facility (facility_admin only).
-   */
   async getMyInviteCode() {
     return await this.request('/facility/users/invite-code');
   }
 
-  /**
-   * Generate or regenerate invite code for my facility (facility_admin only).
-   * The old code is immediately invalidated.
-   */
   async regenerateInviteCode() {
     return await this.request('/facility/users/invite-code/generate', {
       method: 'POST',
     });
   }
 
-  /**
-   * List all staff in my facility (facility_admin only).
-   */
   async getFacilityStaff() {
     return await this.request('/facility/users');
   }
 
-  /**
-   * Create a staff account directly (facility_admin only, no invite code).
-   */
   async createStaff(staffData) {
     return await this.request('/facility/users', {
       method: 'POST',
@@ -168,9 +132,6 @@ class ApiService {
     });
   }
 
-  /**
-   * Deactivate a staff member.
-   */
   async deactivateStaff(userId, reason) {
     return await this.request(`/facility/users/${userId}/deactivate`, {
       method: 'PATCH',
@@ -178,9 +139,6 @@ class ApiService {
     });
   }
 
-  /**
-   * Reactivate a staff member.
-   */
   async reactivateStaff(userId) {
     return await this.request(`/facility/users/${userId}/reactivate`, {
       method: 'PATCH',
@@ -197,9 +155,7 @@ class ApiService {
   }
 
   async searchPatients(query) {
-    if (!query || query.trim().length < 2) {
-      return [];
-    }
+    if (!query || query.trim().length < 2) return [];
     return await this.request(`/patients/search?q=${encodeURIComponent(query)}`);
   }
 
@@ -224,9 +180,7 @@ class ApiService {
 
   async searchPatientsByPhone(phone) {
     if (!phone || phone.trim().length < 3) return [];
-    return await this.request(
-      `/patients/search/phone?q=${encodeURIComponent(phone)}`
-    );
+    return await this.request(`/patients/search/phone?q=${encodeURIComponent(phone)}`);
   }
 
   // ==================== SOAP NOTES ENDPOINTS ====================
@@ -240,18 +194,14 @@ class ApiService {
 
   async getSoapNotes(params = {}) {
     const queryParams = new URLSearchParams();
-
     if (params.page) queryParams.append('page', params.page);
     if (params.limit) queryParams.append('limit', params.limit);
     if (params.status) queryParams.append('status', params.status);
     if (params.patientName) queryParams.append('patientName', params.patientName);
     if (params.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
-
     const queryString = queryParams.toString();
-    const endpoint = queryString ? `/soap-notes?${queryString}` : '/soap-notes';
-
-    return await this.request(endpoint);
+    return await this.request(queryString ? `/soap-notes?${queryString}` : '/soap-notes');
   }
 
   async getSoapNote(id) {
@@ -273,9 +223,7 @@ class ApiService {
   }
 
   async deleteSoapNote(id) {
-    return await this.request(`/soap-notes/${id}`, {
-      method: 'DELETE',
-    });
+    return await this.request(`/soap-notes/${id}`, { method: 'DELETE' });
   }
 
   async getSoapNotesStatistics() {
@@ -290,25 +238,129 @@ class ApiService {
     return await this.getPatientHistory(patientId);
   }
 
-  // ==================== ICD-10 ENDPOINTS ====================
-
-async getPopularIcd10Codes() {
-  return await this.request('/icd10/popular');
-}
-
-async searchIcd10Codes(query) {
-  return await this.request(`/icd10/search?q=${encodeURIComponent(query)}`);
-}
-
-async getIcd10Code(code) {
-  return await this.request(`/icd10/${code}`);
-}
-
   async editSoapNoteWithHistory(noteId, updateData) {
     return await this.request(`/soap-notes/${noteId}/edit`, {
       method: 'PATCH',
       body: JSON.stringify(updateData),
     });
+  }
+
+  // ==================== ICD-10 ENDPOINTS ====================
+
+  async getPopularIcd10Codes() {
+    return await this.request('/icd10/popular');
+  }
+
+  async searchIcd10Codes(query) {
+    return await this.request(`/icd10/search?q=${encodeURIComponent(query)}`);
+  }
+
+  async getIcd10Code(code) {
+    return await this.request(`/icd10/${code}`);
+  }
+
+  // ==================== PATIENT VISITS ENDPOINTS ====================
+
+  /**
+   * Check in a patient and assign to a doctor.
+   * Role: receptionist, facility_admin
+   */
+  async checkInPatient(patientId, reasonForVisit, assignedDoctorId) {
+    return await this.request('/patient-visits/check-in', {
+      method: 'POST',
+      body: JSON.stringify({ patientId, reasonForVisit, assignedDoctorId }),
+    });
+  }
+
+  /**
+   * Get today's full active queue for the facility.
+   * Role: all staff
+   */
+  async getActiveQueue() {
+    return await this.request('/patient-visits/queue');
+  }
+
+  /**
+   * Get the current doctor's personal queue.
+   * Role: doctor
+   */
+  async getMyQueue() {
+    return await this.request('/patient-visits/my-queue');
+  }
+
+  /**
+   * Get queue stats for home screen counters.
+   * Role: all staff
+   */
+  async getQueueStats() {
+    return await this.request('/patient-visits/stats');
+  }
+
+  /**
+   * Submit triage vitals for a visit.
+   * Role: nurse, doctor
+   */
+  async submitTriage(visitId, triageData) {
+    return await this.request(`/patient-visits/${visitId}/triage`, {
+      method: 'PATCH',
+      body: JSON.stringify(triageData),
+    });
+  }
+
+  /**
+   * Reassign a visit to a different doctor.
+   * Role: receptionist, facility_admin
+   */
+  async reassignVisit(visitId, assignedDoctorId) {
+    return await this.request(`/patient-visits/${visitId}/reassign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ assignedDoctorId }),
+    });
+  }
+
+  /**
+   * Mark patient as currently with doctor (called when doctor opens visit).
+   * Role: doctor
+   */
+  async markWithDoctor(visitId) {
+    return await this.request(`/patient-visits/${visitId}/with-doctor`, {
+      method: 'PATCH',
+    });
+  }
+
+  /**
+   * Mark visit as completed.
+   * Role: doctor, nurse
+   */
+  async completeVisit(visitId) {
+    return await this.request(`/patient-visits/${visitId}/complete`, {
+      method: 'PATCH',
+    });
+  }
+
+  /**
+   * Cancel a visit (no-show / patient left).
+   * Role: receptionist, facility_admin
+   */
+  async cancelVisit(visitId) {
+    return await this.request(`/patient-visits/${visitId}/cancel`, {
+      method: 'PATCH',
+    });
+  }
+
+  /**
+   * Get a single visit by ID.
+   */
+  async getVisit(visitId) {
+    return await this.request(`/patient-visits/${visitId}`);
+  }
+
+  /**
+   * Get facility doctors list (for assignment dropdown).
+   */
+  async getFacilityDoctors() {
+    const staff = await this.getFacilityStaff();
+    return staff.filter(u => u.role === 'doctor');
   }
 }
 
