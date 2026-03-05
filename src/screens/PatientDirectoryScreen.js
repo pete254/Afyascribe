@@ -109,35 +109,82 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
   const onRefresh = () => { setRefreshing(true); setSearchQuery(''); loadPatients(1, true); };
   const loadMore  = () => { if (!hasMore || loading || searchQuery.trim().length >= 2) return; loadPatients(page + 1); };
 
+  // ── Open edit modal — populate ALL fields ────────────────────────────────
+
   const openEditModal = patient => {
     setEditingPatient(patient);
     setEditForm({
-      firstName:   patient.firstName   || '',
-      lastName:    patient.lastName    || '',
-      age:         String(patient.age  || ''),
-      gender:      patient.gender      || 'other',
-      phoneNumber: patient.phoneNumber || '',
-      email:       patient.email       || '',
+      // Personal
+      title:         patient.title         || '',
+      firstName:     patient.firstName     || '',
+      middleName:    patient.middleName    || '',
+      lastName:      patient.lastName      || '',
+      gender:        patient.gender        || 'other',
+      dateOfBirth:   patient.dateOfBirth   || '',
+      age:           String(patient.age    || ''),
+      maritalStatus: patient.maritalStatus || '',
+      occupation:    patient.occupation    || '',
+      // Contact
+      phoneNumber:   patient.phoneNumber   || '',
+      email:         patient.email         || '',
+      // Identity
+      idType:        patient.idType        || '',
+      idNumber:      patient.idNumber      || '',
+      // Location
+      nationality:   patient.nationality   || '',
+      county:        patient.county        || '',
+      subCounty:     patient.subCounty     || '',
+      postalCode:    patient.postalCode    || '',
+      // Facility
+      howKnown:      patient.howKnown      || '',
+      patientType:   patient.patientType   || '',
+      medicalPlan:   patient.medicalPlan   || '',
+      membershipNo:  patient.membershipNo  || '',
+      // Next of kin (deep copy)
+      nextOfKin:     patient.nextOfKin
+        ? patient.nextOfKin.map(k => ({ ...k }))
+        : [],
     });
     setEditModalVisible(true);
   };
 
   const closeEditModal = () => { setEditModalVisible(false); setEditingPatient(null); setEditForm({}); };
 
+  // ── Save — send ALL fields to PATCH /patients/:id ────────────────────────
+
   const handleSaveEdit = async () => {
     if (!editForm.firstName?.trim() || !editForm.lastName?.trim()) {
-      Alert.alert('Validation', 'First and last name are required.'); return;
+      Alert.alert('Validation', 'First and last name are required.');
+      return;
     }
     setSaving(true);
     try {
-      const updated = await apiService.updatePatient(editingPatient.id, {
-        firstName:   editForm.firstName.trim(),
-        lastName:    editForm.lastName.trim(),
-        age:         parseInt(editForm.age, 10) || undefined,
-        gender:      editForm.gender,
-        phoneNumber: editForm.phoneNumber.trim() || undefined,
-        email:       editForm.email.trim()       || undefined,
-      });
+      const payload = {
+        title:         editForm.title?.trim()         || undefined,
+        firstName:     editForm.firstName.trim(),
+        middleName:    editForm.middleName?.trim()     || undefined,
+        lastName:      editForm.lastName.trim(),
+        gender:        editForm.gender,
+        dateOfBirth:   editForm.dateOfBirth?.trim()   || undefined,
+        age:           parseInt(editForm.age, 10)     || undefined,
+        maritalStatus: editForm.maritalStatus?.trim() || undefined,
+        occupation:    editForm.occupation?.trim()    || undefined,
+        phoneNumber:   editForm.phoneNumber?.trim()   || undefined,
+        email:         editForm.email?.trim()         || undefined,
+        idType:        editForm.idType?.trim()        || undefined,
+        idNumber:      editForm.idNumber?.trim()      || undefined,
+        nationality:   editForm.nationality?.trim()   || undefined,
+        county:        editForm.county?.trim()        || undefined,
+        subCounty:     editForm.subCounty?.trim()     || undefined,
+        postalCode:    editForm.postalCode?.trim()    || undefined,
+        howKnown:      editForm.howKnown?.trim()      || undefined,
+        patientType:   editForm.patientType?.trim()   || undefined,
+        medicalPlan:   editForm.medicalPlan?.trim()   || undefined,
+        membershipNo:  editForm.membershipNo?.trim()  || undefined,
+        nextOfKin:     editForm.nextOfKin?.length     ? editForm.nextOfKin : undefined,
+      };
+
+      const updated = await apiService.updatePatient(editingPatient.id, payload);
       setPatients(prev => prev.map(p => p.id === editingPatient.id ? { ...p, ...updated } : p));
       Alert.alert('✅ Saved', 'Patient updated successfully.');
       closeEditModal();
@@ -147,6 +194,29 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
       setSaving(false);
     }
   };
+
+  // ── Next of kin helpers ───────────────────────────────────────────────────
+
+  const updateKin = (index, field, value) => {
+    setEditForm(p => {
+      const updated = [...p.nextOfKin];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...p, nextOfKin: updated };
+    });
+  };
+
+  const addKin = () => {
+    setEditForm(p => ({
+      ...p,
+      nextOfKin: [...(p.nextOfKin || []), { firstName: '', lastName: '', relationship: '', phone: '' }],
+    }));
+  };
+
+  const removeKin = index => {
+    setEditForm(p => ({ ...p, nextOfKin: p.nextOfKin.filter((_, i) => i !== index) }));
+  };
+
+  // ── Render helpers ────────────────────────────────────────────────────────
 
   const getPlaceholder = () => ({
     name:  'Search by first or last name…',
@@ -232,6 +302,8 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
     return null;
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0f766e" />
@@ -311,6 +383,8 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
       <Modal visible={editModalVisible} animationType="slide" transparent onRequestClose={closeEditModal}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
+
+            {/* Modal header */}
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Edit Patient</Text>
@@ -323,6 +397,17 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
 
             <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 40 }}
               showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+              {/* ── Personal Info ── */}
+              <Text style={styles.sectionLabel}>Personal Information</Text>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Title</Text>
+                <TextInput style={styles.formInput} value={editForm.title}
+                  onChangeText={v => setEditForm(p => ({ ...p, title: v }))}
+                  placeholder="e.g. Mr, Mrs, Dr" autoCapitalize="words" />
+              </View>
+
               <View style={styles.formRow}>
                 <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                   <Text style={styles.formLabel}>First Name *</Text>
@@ -339,10 +424,10 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Age</Text>
-                <TextInput style={styles.formInput} value={editForm.age}
-                  onChangeText={v => setEditForm(p => ({ ...p, age: v }))}
-                  placeholder="Age" keyboardType="numeric" maxLength={3} />
+                <Text style={styles.formLabel}>Middle Name</Text>
+                <TextInput style={styles.formInput} value={editForm.middleName}
+                  onChangeText={v => setEditForm(p => ({ ...p, middleName: v }))}
+                  placeholder="Middle name" autoCapitalize="words" />
               </View>
 
               <View style={styles.formGroup}>
@@ -360,11 +445,43 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
                 </View>
               </View>
 
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={styles.formLabel}>Date of Birth</Text>
+                  <TextInput style={styles.formInput} value={editForm.dateOfBirth}
+                    onChangeText={v => setEditForm(p => ({ ...p, dateOfBirth: v }))}
+                    placeholder="YYYY-MM-DD" keyboardType="numeric" />
+                </View>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.formLabel}>Age</Text>
+                  <TextInput style={styles.formInput} value={editForm.age}
+                    onChangeText={v => setEditForm(p => ({ ...p, age: v }))}
+                    placeholder="Age" keyboardType="numeric" maxLength={3} />
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Marital Status</Text>
+                <TextInput style={styles.formInput} value={editForm.maritalStatus}
+                  onChangeText={v => setEditForm(p => ({ ...p, maritalStatus: v }))}
+                  placeholder="e.g. Single, Married, Divorced" autoCapitalize="words" />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Occupation</Text>
+                <TextInput style={styles.formInput} value={editForm.occupation}
+                  onChangeText={v => setEditForm(p => ({ ...p, occupation: v }))}
+                  placeholder="e.g. Teacher, Farmer" autoCapitalize="words" />
+              </View>
+
+              {/* ── Contact ── */}
+              <Text style={styles.sectionLabel}>Contact Details</Text>
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Phone Number</Text>
                 <TextInput style={styles.formInput} value={editForm.phoneNumber}
                   onChangeText={v => setEditForm(p => ({ ...p, phoneNumber: v }))}
-                  placeholder="+254 700 000 000" keyboardType="phone-pad" />
+                  placeholder="e.g. 0712345678" keyboardType="phone-pad" />
               </View>
 
               <View style={styles.formGroup}>
@@ -374,6 +491,136 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
                   placeholder="patient@email.com" keyboardType="email-address" autoCapitalize="none" />
               </View>
 
+              {/* ── Identity ── */}
+              <Text style={styles.sectionLabel}>Identity</Text>
+
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={styles.formLabel}>ID Type</Text>
+                  <TextInput style={styles.formInput} value={editForm.idType}
+                    onChangeText={v => setEditForm(p => ({ ...p, idType: v }))}
+                    placeholder="e.g. National ID" autoCapitalize="words" />
+                </View>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.formLabel}>ID Number</Text>
+                  <TextInput style={styles.formInput} value={editForm.idNumber}
+                    onChangeText={v => setEditForm(p => ({ ...p, idNumber: v }))}
+                    placeholder="ID number" />
+                </View>
+              </View>
+
+              {/* ── Location ── */}
+              <Text style={styles.sectionLabel}>Location</Text>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Nationality</Text>
+                <TextInput style={styles.formInput} value={editForm.nationality}
+                  onChangeText={v => setEditForm(p => ({ ...p, nationality: v }))}
+                  placeholder="e.g. Kenyan" autoCapitalize="words" />
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={styles.formLabel}>County</Text>
+                  <TextInput style={styles.formInput} value={editForm.county}
+                    onChangeText={v => setEditForm(p => ({ ...p, county: v }))}
+                    placeholder="e.g. Nairobi" autoCapitalize="words" />
+                </View>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.formLabel}>Sub-County</Text>
+                  <TextInput style={styles.formInput} value={editForm.subCounty}
+                    onChangeText={v => setEditForm(p => ({ ...p, subCounty: v }))}
+                    placeholder="e.g. Westlands" autoCapitalize="words" />
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Postal Code</Text>
+                <TextInput style={styles.formInput} value={editForm.postalCode}
+                  onChangeText={v => setEditForm(p => ({ ...p, postalCode: v }))}
+                  placeholder="e.g. 00100" keyboardType="numeric" />
+              </View>
+
+              {/* ── Facility Info ── */}
+              <Text style={styles.sectionLabel}>Facility Information</Text>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>How Known</Text>
+                <TextInput style={styles.formInput} value={editForm.howKnown}
+                  onChangeText={v => setEditForm(p => ({ ...p, howKnown: v }))}
+                  placeholder="e.g. Referral, Walk-in" autoCapitalize="words" />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Patient Type</Text>
+                <TextInput style={styles.formInput} value={editForm.patientType}
+                  onChangeText={v => setEditForm(p => ({ ...p, patientType: v }))}
+                  placeholder="e.g. Cash, Insurance" autoCapitalize="words" />
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={styles.formLabel}>Medical Plan</Text>
+                  <TextInput style={styles.formInput} value={editForm.medicalPlan}
+                    onChangeText={v => setEditForm(p => ({ ...p, medicalPlan: v }))}
+                    placeholder="e.g. NHIF, AAR" autoCapitalize="words" />
+                </View>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.formLabel}>Membership No.</Text>
+                  <TextInput style={styles.formInput} value={editForm.membershipNo}
+                    onChangeText={v => setEditForm(p => ({ ...p, membershipNo: v }))}
+                    placeholder="Membership number" />
+                </View>
+              </View>
+
+              {/* ── Next of Kin ── */}
+              <Text style={styles.sectionLabel}>Next of Kin</Text>
+
+              {(editForm.nextOfKin || []).map((kin, index) => (
+                <View key={index} style={styles.kinCard}>
+                  <View style={styles.kinCardHeader}>
+                    <Text style={styles.kinCardTitle}>Next of Kin {index + 1}</Text>
+                    <TouchableOpacity onPress={() => removeKin(index)}>
+                      <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.formRow}>
+                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                      <Text style={styles.formLabel}>First Name</Text>
+                      <TextInput style={styles.formInput} value={kin.firstName}
+                        onChangeText={v => updateKin(index, 'firstName', v)}
+                        placeholder="First name" autoCapitalize="words" />
+                    </View>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={styles.formLabel}>Last Name</Text>
+                      <TextInput style={styles.formInput} value={kin.lastName}
+                        onChangeText={v => updateKin(index, 'lastName', v)}
+                        placeholder="Last name" autoCapitalize="words" />
+                    </View>
+                  </View>
+                  <View style={styles.formRow}>
+                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                      <Text style={styles.formLabel}>Relationship</Text>
+                      <TextInput style={styles.formInput} value={kin.relationship}
+                        onChangeText={v => updateKin(index, 'relationship', v)}
+                        placeholder="e.g. Spouse, Parent" autoCapitalize="words" />
+                    </View>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={styles.formLabel}>Phone</Text>
+                      <TextInput style={styles.formInput} value={kin.phone}
+                        onChangeText={v => updateKin(index, 'phone', v)}
+                        placeholder="Phone number" keyboardType="phone-pad" />
+                    </View>
+                  </View>
+                </View>
+              ))}
+
+              <TouchableOpacity style={styles.addKinBtn} onPress={addKin}>
+                <Ionicons name="add-circle-outline" size={18} color="#0f766e" />
+                <Text style={styles.addKinText}>Add Next of Kin</Text>
+              </TouchableOpacity>
+
+              {/* ── Save / Cancel ── */}
               <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
                 onPress={handleSaveEdit} disabled={saving}>
                 {saving
@@ -384,6 +631,7 @@ export default function PatientDirectoryScreen({ onBack, onViewPatientHistory })
               <TouchableOpacity style={styles.cancelBtn} onPress={closeEditModal}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
+
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -452,8 +700,10 @@ const styles = StyleSheet.create({
   },
   loadMoreText: { color: '#0f766e', fontWeight: '600', fontSize: 14 },
   footerLoader: { paddingVertical: 16, alignItems: 'center' },
+
+  // ── Modal ──
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%' },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     padding: 20, borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
@@ -462,6 +712,15 @@ const styles = StyleSheet.create({
   modalSubtitle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
   closeBtn: { padding: 4, borderRadius: 8, backgroundColor: '#f3f4f6' },
   modalBody: { paddingHorizontal: 20, paddingTop: 16 },
+
+  // ── Section label ──
+  sectionLabel: {
+    fontSize: 12, fontWeight: '700', color: '#0f766e',
+    textTransform: 'uppercase', letterSpacing: 0.8,
+    marginTop: 16, marginBottom: 10,
+  },
+
+  // ── Form ──
   formRow: { flexDirection: 'row', marginBottom: 14 },
   formGroup: { marginBottom: 14 },
   formLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
@@ -476,6 +735,25 @@ const styles = StyleSheet.create({
   genderOptionActive: { borderColor: '#0f766e', backgroundColor: '#f0fdf4' },
   genderOptionText: { fontSize: 14, color: '#6b7280', fontWeight: '500' },
   genderOptionTextActive: { color: '#0f766e', fontWeight: '700' },
+
+  // ── Next of kin ──
+  kinCard: {
+    backgroundColor: '#f9fafb', borderRadius: 12,
+    borderWidth: 1, borderColor: '#e5e7eb',
+    padding: 12, marginBottom: 12,
+  },
+  kinCardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 10,
+  },
+  kinCardTitle: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  addKinBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 12, justifyContent: 'center', marginBottom: 16,
+  },
+  addKinText: { fontSize: 14, color: '#0f766e', fontWeight: '600' },
+
+  // ── Save / Cancel ──
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, backgroundColor: '#0f766e', borderRadius: 12, paddingVertical: 15, marginTop: 8,

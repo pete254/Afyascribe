@@ -241,12 +241,24 @@ export default function HomeScreen({
               <Text style={styles.cardSubtitle}>Record vitals for a patient before consultation</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionCard, styles.cardBlue]} onPress={onViewPatientDirectory} activeOpacity={0.85}>
+            {/* ✅ NEW: Onboard Patient card for doctors */}
+            <TouchableOpacity style={[styles.actionCard, styles.cardBlue]} onPress={onOnboardPatient} activeOpacity={0.85}>
               <View style={[styles.iconCircle, styles.iconCircleBlue]}>
-                <MaterialCommunityIcons name="folder-account-outline" size={30} color="#2563eb" />
+                <MaterialCommunityIcons name="account-plus-outline" size={30} color="#2563eb" />
               </View>
               <View style={[styles.arrowBadge, styles.arrowBadgeBlue]}>
                 <Ionicons name="arrow-forward" size={14} color="#2563eb" />
+              </View>
+              <Text style={styles.cardTitle}>Onboard Patient</Text>
+              <Text style={styles.cardSubtitle}>Register a new patient into the system</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.actionCard, styles.cardGray]} onPress={onViewPatientDirectory} activeOpacity={0.85}>
+              <View style={[styles.iconCircle, styles.iconCircleGray]}>
+                <MaterialCommunityIcons name="folder-account-outline" size={30} color="#475569" />
+              </View>
+              <View style={[styles.arrowBadge, styles.arrowBadgeGray]}>
+                <Ionicons name="arrow-forward" size={14} color="#475569" />
               </View>
               <Text style={styles.cardTitle}>Patient Directory</Text>
               <Text style={styles.cardSubtitle}>Search and browse all registered patients</Text>
