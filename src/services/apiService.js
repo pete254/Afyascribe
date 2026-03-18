@@ -362,6 +362,111 @@ class ApiService {
     const staff = await this.getFacilityStaff();
     return staff.filter(u => u.role === 'doctor');
   }
+
+  // ==================== BILLING ENDPOINTS ====================
+
+  /**
+   * Create a bill for a visit.
+   * Role: receptionist, facility_admin
+   */
+  async createBill(visitId, serviceType, serviceDescription, amount) {
+    return await this.request('/billing', {
+      method: 'POST',
+      body: JSON.stringify({ visitId, serviceType, serviceDescription, amount }),
+    });
+  }
+
+  /**
+   * Get all bills for a specific visit.
+   */
+  async getVisitBills(visitId) {
+    return await this.request(`/billing/visit/${visitId}`);
+  }
+
+  /**
+   * Get billing summary (total / paid / unpaid) for a visit.
+   */
+  async getVisitBillingSummary(visitId) {
+    return await this.request(`/billing/visit/${visitId}/summary`);
+  }
+
+  /**
+   * Mark a bill as paid. Automatically advances visit to waiting queue
+   * when all bills for the visit are cleared.
+   * Role: receptionist, facility_admin
+   */
+  async markBillPaid(billId) {
+    return await this.request(`/billing/${billId}/pay`, {
+      method: 'PATCH',
+    });
+  }
+
+  /**
+   * Waive a bill (admin only).
+   */
+  async waiveBill(billId, waiverReason) {
+    return await this.request(`/billing/${billId}/waive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ waiverReason }),
+    });
+  }
+
+  /**
+   * Get today's unpaid bills for the facility.
+   * Role: receptionist, facility_admin
+   */
+  async getUnpaidBillsToday() {
+    return await this.request('/billing/unpaid-today');
+  }
+
+  // ==================== DRAFT SOAP NOTE ENDPOINTS ====================
+
+  /**
+   * Create a new draft. All SOAP fields are optional.
+   * Returns the saved draft with its id.
+   */
+  async createDraft(patientId, fields = {}) {
+    return await this.request('/soap-notes/draft', {
+      method: 'POST',
+      body: JSON.stringify({ patientId, ...fields }),
+    });
+  }
+
+  /**
+   * Update an existing draft by id.
+   */
+  async updateDraft(draftId, patientId, fields = {}) {
+    return await this.request(`/soap-notes/draft/${draftId}`, {
+      method: 'POST',
+      body: JSON.stringify({ patientId, ...fields }),
+    });
+  }
+
+  /**
+   * Get all drafts for the current user.
+   */
+  async getMyDrafts() {
+    return await this.request('/soap-notes/drafts');
+  }
+
+  /**
+   * Finalise a draft — saves it as a completed SOAP note (status: pending).
+   */
+  async finaliseDraft(draftId, patientId, fields = {}) {
+    return await this.request(`/soap-notes/draft/${draftId}/finalise`, {
+      method: 'POST',
+      body: JSON.stringify({ patientId, ...fields }),
+    });
+  }
+
+  /**
+   * Delete a draft permanently.
+   */
+  async deleteDraft(draftId) {
+    return await this.request(`/soap-notes/draft/${draftId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export default new ApiService();
