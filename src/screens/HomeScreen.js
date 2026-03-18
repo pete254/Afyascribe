@@ -21,6 +21,7 @@ export default function HomeScreen({
   onViewQueue,
   onViewMyQueue,
   onViewTriageQueue,
+  onViewReports,
 }) {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
@@ -168,6 +169,24 @@ export default function HomeScreen({
               <Text style={styles.cardTitle}>Patient Directory</Text>
               <Text style={styles.cardSubtitle}>Search and browse all registered patients</Text>
             </TouchableOpacity>
+
+            {/* Reports card — facility_admin only */}
+            {role === 'facility_admin' && (
+              <TouchableOpacity
+                style={[styles.actionCard, styles.cardPurple]}
+                onPress={onViewReports}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.iconCircle, styles.iconCirclePurple]}>
+                  <MaterialCommunityIcons name="chart-bar" size={30} color="#7c3aed" />
+                </View>
+                <View style={[styles.arrowBadge, styles.arrowBadgePurple]}>
+                  <Ionicons name="arrow-forward" size={14} color="#7c3aed" />
+                </View>
+                <Text style={styles.cardTitle}>Reports</Text>
+                <Text style={styles.cardSubtitle}>Patients today, financials and insurance claims</Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
 
@@ -241,7 +260,6 @@ export default function HomeScreen({
               <Text style={styles.cardSubtitle}>Record vitals for a patient before consultation</Text>
             </TouchableOpacity>
 
-            {/* ✅ NEW: Onboard Patient card for doctors */}
             <TouchableOpacity style={[styles.actionCard, styles.cardBlue]} onPress={onOnboardPatient} activeOpacity={0.85}>
               <View style={[styles.iconCircle, styles.iconCircleBlue]}>
                 <MaterialCommunityIcons name="account-plus-outline" size={30} color="#2563eb" />
@@ -313,14 +331,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08, shadowRadius: 16, elevation: 5,
   },
   cardTeal:   { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#99f6e4' },
-  cardPurple: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ddd6fe' },
+  cardPurple: { backgroundColor: '#faf5ff', borderWidth: 1.5, borderColor: '#ddd6fe' },
   cardBlue:   { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#bfdbfe' },
   cardOrange: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#fed7aa' },
   cardGray:   { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0' },
 
   iconCircle: { width: 58, height: 58, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
   iconCircleTeal:   { backgroundColor: '#e6fdf8' },
-  iconCirclePurple: { backgroundColor: '#f5f3ff' },
+  iconCirclePurple: { backgroundColor: '#ede9fe' },
   iconCircleBlue:   { backgroundColor: '#eff6ff' },
   iconCircleOrange: { backgroundColor: '#fff7ed' },
   iconCircleGray:   { backgroundColor: '#f8fafc' },
@@ -330,7 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e6fdf8', width: 30, height: 30,
     borderRadius: 10, justifyContent: 'center', alignItems: 'center',
   },
-  arrowBadgePurple: { backgroundColor: '#f5f3ff' },
+  arrowBadgePurple: { backgroundColor: '#ede9fe' },
   arrowBadgeBlue:   { backgroundColor: '#eff6ff' },
   arrowBadgeOrange: { backgroundColor: '#fff7ed' },
   arrowBadgeGray:   { backgroundColor: '#f8fafc' },

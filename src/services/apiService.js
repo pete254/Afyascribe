@@ -395,11 +395,13 @@ class ApiService {
    * when all bills for the visit are cleared.
    * Role: receptionist, facility_admin
    */
-  async markBillPaid(billId) {
-    return await this.request(`/billing/${billId}/pay`, {
-      method: 'PATCH',
-    });
-  }
+    async markBillPaid(billId, paymentData) {
+      return await this.request(`/billing/${billId}/pay`, {
+        method: 'PATCH',
+        body: JSON.stringify(paymentData),
+        // paymentData: { paymentMethod, amountReceived, mpesaReference? }
+      });
+    }
 
   /**
    * Waive a bill (admin only).
@@ -458,6 +460,62 @@ class ApiService {
       body: JSON.stringify({ patientId, ...fields }),
     });
   }
+
+  // ==================== INSURANCE SCHEMES ENDPOINTS ====================
+
+async getInsuranceSchemes() {
+  return await this.request('/insurance-schemes');
+}
+
+async createInsuranceScheme(data) {
+  return await this.request('/insurance-schemes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+async updateInsuranceScheme(id, data) {
+  return await this.request(`/insurance-schemes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+async deleteInsuranceScheme(id) {
+  return await this.request(`/insurance-schemes/${id}`, {
+    method: 'DELETE',
+  });
+}
+// ==================== REPORTS ENDPOINTS ====================
+
+async getReportsPatientsToday() {
+  return await this.request('/reports/patients-today');
+}
+
+async getFinancialReport(from, to) {
+  const params = new URLSearchParams();
+  if (from) params.append('from', from);
+  if (to) params.append('to', to);
+  return await this.request(`/reports/financials?${params.toString()}`);
+}
+
+async getInsuranceClaimsReport(from, to, scheme) {
+  const params = new URLSearchParams();
+  if (from) params.append('from', from);
+  if (to) params.append('to', to);
+  if (scheme) params.append('scheme', scheme);
+  return await this.request(`/reports/insurance-claims?${params.toString()}`);
+}
+
+// Returns the CSV download URL (opened via Linking or expo-sharing)
+getInsuranceClaimsExportUrl(from, to, scheme) {
+  const BASE = 'https://afyascribe-backend.onrender.com';
+  const params = new URLSearchParams();
+  if (from) params.append('from', from);
+  if (to) params.append('to', to);
+  if (scheme) params.append('scheme', scheme);
+  return `${BASE}/reports/insurance-claims/export?${params.toString()}`;
+}
 
   /**
    * Delete a draft permanently.

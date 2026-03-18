@@ -21,6 +21,7 @@ import QueueScreen from './src/screens/QueueScreen';
 import MyQueueScreen from './src/screens/MyQueueScreen';
 import TriageScreen from './src/screens/TriageScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import ReportsScreen from './src/screens/ReportsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -103,6 +104,7 @@ function MainApp() {
   const goToQueuePatient = () => setActiveScreen('queue-patient');
   const goToQueue = () => setActiveScreen('queue');
   const goToMyQueue = () => setActiveScreen('my-queue');
+  const goToReports = () => setActiveScreen('reports');
 
   const goToTriage = (visit = null) => {
     setTriageVisit(visit);
@@ -122,7 +124,7 @@ function MainApp() {
   // ── Tab bar visibility ─────────────────────────────────────────────────────
   const hideTabBar = [
     'patient-history', 'onboard-patient', 'patient-directory',
-    'queue-patient', 'queue', 'my-queue', 'triage',
+    'queue-patient', 'queue', 'my-queue', 'triage', 'reports',
   ].includes(activeScreen);
 
   // ── Screen renderer ────────────────────────────────────────────────────────
@@ -139,6 +141,7 @@ function MainApp() {
             onViewQueue={goToQueue}
             onViewMyQueue={goToMyQueue}
             onViewTriageQueue={() => goToTriage(null)}
+            onViewReports={goToReports}
           />
         );
 
@@ -209,6 +212,9 @@ function MainApp() {
             onGoToTranscription={goToTranscription}
           />
         );
+
+      case 'reports':
+        return <ReportsScreen onBack={goBack} />;
 
       case 'transcription':
       default:

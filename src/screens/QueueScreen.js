@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActivityIndicator, Alert, RefreshControl, Modal, Platform,
+  ActivityIndicator, Alert, RefreshControl, Modal, Platform, TextInput,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import apiService from '../services/apiService';
@@ -34,6 +34,9 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
   const [billingModal, setBillingModal] = useState(false);
   const [billingVisit, setBillingVisit] = useState(null);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [amountReceived, setAmountReceived] = useState('');
+  const [mpesaRef, setMpesaRef] = useState('');
 
   const canReassign = ['receptionist', 'facility_admin', 'super_admin'].includes(user?.role);
   const canCancel = canReassign;
@@ -105,36 +108,36 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
   const handleOpenBilling = async (visit) => {
     setBillingVisit(visit);
     await loadBillsForVisit(visit);
+    setPaymentMethod('cash');
+    setAmountReceived('');
+    setMpesaRef('');
     setBillingModal(true);
   };
 
   const handleMarkPaid = async (bill) => {
-    Alert.alert(
-      'Confirm Payment',
-      `Mark KES ${parseFloat(bill.amount).toLocaleString()} as paid?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark Paid',
-          onPress: async () => {
-            setMarkingPaid(true);
-            try {
-              await apiService.markBillPaid(bill.id);
-              // Refresh bills and queue
-              if (billingVisit) await loadBillsForVisit(billingVisit);
-              await loadQueue();
-              // If no more unpaid, close modal
-              const summary = billingData[billingVisit?.id];
-              if (summary && !summary.hasPendingBills) setBillingModal(false);
-            } catch (e) {
-              Alert.alert('Error', e.message || 'Failed to mark as paid');
-            } finally {
-              setMarkingPaid(false);
-            }
-          },
-        },
-      ]
-    );
+    const parsed = parseFloat(amountReceived);
+    if (!amountReceived || isNaN(parsed) || parsed < 0) {
+      Alert.alert('Missing', 'Please enter the amount received');
+      return;
+    }
+    setMarkingPaid(true);
+    try {
+      await apiService.markBillPaid(bill.id, {
+        paymentMethod,
+        amountReceived: parsed,
+        mpesaReference: mpesaRef.trim() || undefined,
+      });
+      if (billingVisit) await loadBillsForVisit(billingVisit);
+      await loadQueue();
+      const summary = billingData[billingVisit?.id];
+      if (summary && !summary.hasPendingBills) setBillingModal(false);
+      setAmountReceived('');
+      setMpesaRef('');
+    } catch (e) {
+      Alert.alert('Payment Error', e.message || 'Failed to collect payment');
+    } finally {
+      setMarkingPaid(false);
+    }
   };
 
   const handleCancel = (visit) => {
@@ -350,22 +353,61 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
                         ) : null}
                         <Text style={styles.billAmt}>KES {parseFloat(bill.amount).toLocaleString()}</Text>
                       </View>
+
                       {bill.status === 'unpaid' ? (
-                        <TouchableOpacity
-                          style={styles.payBtn}
-                          onPress={() => handleMarkPaid(bill)}
-                          disabled={markingPaid}
-                        >
-                          {markingPaid ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                          ) : (
-                            <Text style={styles.payBtnText}>Mark Paid</Text>
+                        <View style={{ marginTop: 10 }}>
+                          {/* Payment method selector */}
+                          <View style={styles.payMethodRow}>
+                            {['cash', 'mpesa', 'card'].map((m) => (
+                              <TouchableOpacity
+                                key={m}
+                                style={[styles.payMethodBtn, paymentMethod === m && styles.payMethodBtnActive]}
+                                onPress={() => { setPaymentMethod(m); setMpesaRef(''); }}
+                              >
+                                <Text style={[styles.payMethodText, paymentMethod === m && styles.payMethodTextActive]}>
+                                  {m === 'mpesa' ? 'M-Pesa' : m.charAt(0).toUpperCase() + m.slice(1)}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+
+                          {/* Amount received */}
+                          <TextInput
+                            style={styles.payInput}
+                            placeholder={`Amount received (KES ${parseFloat(bill.amount).toLocaleString()})`}
+                            value={amountReceived}
+                            onChangeText={setAmountReceived}
+                            keyboardType="numeric"
+                          />
+
+                          {/* M-Pesa reference — shown only when mpesa selected */}
+                          {paymentMethod === 'mpesa' && (
+                            <TextInput
+                              style={styles.payInput}
+                              placeholder="M-Pesa ref (optional)"
+                              value={mpesaRef}
+                              onChangeText={setMpesaRef}
+                              autoCapitalize="characters"
+                            />
                           )}
-                        </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.payBtn}
+                            onPress={() => handleMarkPaid(bill)}
+                            disabled={markingPaid}
+                          >
+                            {markingPaid
+                              ? <ActivityIndicator size="small" color="#fff" />
+                              : <Text style={styles.payBtnText}>Collect Payment</Text>
+                            }
+                          </TouchableOpacity>
+                        </View>
                       ) : (
                         <View style={styles.paidTag}>
                           <Ionicons name="checkmark-circle" size={14} color="#166534" />
-                          <Text style={styles.paidTagText}>{bill.status === 'waived' ? 'Waived' : 'Paid'}</Text>
+                          <Text style={styles.paidTagText}>
+                            {bill.status === 'waived' ? 'Waived' : `Paid · ${bill.paymentMethod ?? ''}`}
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -480,4 +522,19 @@ const styles = StyleSheet.create({
   billTotalVal: { fontWeight: '700', color: '#0f172a' },
   billUnpaidLabel: { fontSize: 14, color: '#374151' },
   billUnpaidVal: { fontWeight: '700', color: '#b45309' },
+
+  // Payment form
+  payMethodRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  payMethodBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5,
+    borderColor: '#e2e8f0', alignItems: 'center',
+  },
+  payMethodBtnActive: { borderColor: '#0f766e', backgroundColor: '#f0fdf9' },
+  payMethodText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  payMethodTextActive: { color: '#0f766e', fontWeight: '700' },
+  payInput: {
+    borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
+    color: '#1e293b', marginBottom: 8, backgroundColor: '#f8fafc',
+  },
 });
