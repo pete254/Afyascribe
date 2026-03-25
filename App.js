@@ -1,10 +1,11 @@
-// App.js - Updated with Patient Queue module
+// App.js - Updated with SafeAreaProvider + bottom inset fixes
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import TranscriptionScreen from './src/screens/TranscriptionScreen';
 import SavedNotesScreen from './src/screens/SavedNotesScreen';
@@ -25,8 +26,100 @@ import ReportsScreen from './src/screens/ReportsScreen';
 
 const Stack = createNativeStackNavigator();
 
+// ── Standalone Bottom Tab Bar component (reads safe area insets) ──────────────
+function BottomTabBar({
+  activeTab,
+  user,
+  goToHome,
+  goToMyQueue,
+  goToQueue,
+  goToSavedNotes,
+  onPressNewNote,
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+
+      <TouchableOpacity
+        style={[styles.tab, activeTab === 'home' && styles.activeTab]}
+        onPress={goToHome}
+      >
+        <Ionicons
+          name={activeTab === 'home' ? 'home' : 'home-outline'}
+          size={22}
+          color={activeTab === 'home' ? '#0f766e' : '#94a3b8'}
+        />
+        <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>Home</Text>
+      </TouchableOpacity>
+
+      {user?.role === 'doctor' ? (
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'my-queue' && styles.activeTab]}
+          onPress={goToMyQueue}
+        >
+          <MaterialCommunityIcons
+            name="account-clock-outline"
+            size={22}
+            color={activeTab === 'my-queue' ? '#0f766e' : '#94a3b8'}
+          />
+          <Text style={[styles.tabText, activeTab === 'my-queue' && styles.activeTabText]}>
+            My Queue
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'queue' && styles.activeTab]}
+          onPress={goToQueue}
+        >
+          <MaterialCommunityIcons
+            name="clipboard-list-outline"
+            size={22}
+            color={activeTab === 'queue' ? '#0f766e' : '#94a3b8'}
+          />
+          <Text style={[styles.tabText, activeTab === 'queue' && styles.activeTabText]}>
+            Queue
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={[styles.tab, activeTab === 'transcription' && styles.activeTab]}
+        onPress={onPressNewNote}
+      >
+        <MaterialCommunityIcons
+          name="microphone"
+          size={22}
+          color={activeTab === 'transcription' ? '#0f766e' : '#94a3b8'}
+        />
+        <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>
+          New Note
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.tab, activeTab === 'saved' && styles.activeTab]}
+        onPress={goToSavedNotes}
+      >
+        <MaterialCommunityIcons
+          name={activeTab === 'saved' ? 'note-text' : 'note-text-outline'}
+          size={22}
+          color={activeTab === 'saved' ? '#0f766e' : '#94a3b8'}
+        />
+        <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>
+          My Notes
+        </Text>
+      </TouchableOpacity>
+
+    </View>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
 function MainApp() {
   const { isAuthenticated, loading, logout, user } = useAuth();
+  const insets = useSafeAreaInsets();
+
   const [activeTab, setActiveTab] = useState('home');
   const [activeScreen, setActiveScreen] = useState('home');
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -56,7 +149,7 @@ function MainApp() {
     );
   }
 
-  // ── Navigation helpers ─────────────────────────────────────────────────────
+  // ── Navigation helpers ───────────────────────────────────────────────────────
 
   const goToHome = () => {
     setActiveScreen('home');
@@ -68,10 +161,6 @@ function MainApp() {
   };
 
   const goBack = () => {
-    // Screens launched from the bottom tab bar (my-queue, queue) should
-    // always return to home — they have no meaningful "previous tab" state.
-    // Screens launched from within another flow (patient-history, onboard, etc.)
-    // should return to whichever tab was active before they were opened.
     const fullScreens = ['my-queue', 'queue'];
     if (fullScreens.includes(activeTab) || fullScreens.includes(activeScreen)) {
       goToHome();
@@ -138,13 +227,13 @@ function MainApp() {
 
   const clearEditMode = () => setNoteToEdit(null);
 
-  // ── Tab bar visibility ─────────────────────────────────────────────────────
+  // ── Tab bar visibility ───────────────────────────────────────────────────────
   const hideTabBar = [
     'patient-history', 'onboard-patient', 'patient-directory',
     'queue-patient', 'queue', 'my-queue', 'triage', 'reports',
   ].includes(activeScreen);
 
-  // ── Screen renderer ────────────────────────────────────────────────────────
+  // ── Screen renderer ──────────────────────────────────────────────────────────
   const renderScreen = () => {
     switch (activeScreen) {
 
@@ -250,8 +339,8 @@ function MainApp() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* ── Header — respects top inset ── */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View>
           <Text style={styles.headerTitle}>AfyaScribe</Text>
           <Text style={styles.headerSubtitle}>
@@ -264,81 +353,25 @@ function MainApp() {
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
+      {/* ── Content ── */}
       <View style={styles.content}>{renderScreen()}</View>
 
-      {/* Bottom Tab Bar */}
+      {/* ── Bottom Tab Bar — respects bottom inset ── */}
       {!hideTabBar && (
-        <View style={styles.tabBar}>
-
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'home' && styles.activeTab]}
-            onPress={goToHome}
-          >
-            <Ionicons
-              name={activeTab === 'home' ? 'home' : 'home-outline'}
-              size={22}
-              color={activeTab === 'home' ? '#0f766e' : '#94a3b8'}
-            />
-            <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>Home</Text>
-          </TouchableOpacity>
-
-          {user?.role === 'doctor' ? (
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'my-queue' && styles.activeTab]}
-              onPress={goToMyQueue}
-            >
-              <MaterialCommunityIcons
-                name="account-clock-outline"
-                size={22}
-                color={activeTab === 'my-queue' ? '#0f766e' : '#94a3b8'}
-              />
-              <Text style={[styles.tabText, activeTab === 'my-queue' && styles.activeTabText]}>My Queue</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'queue' && styles.activeTab]}
-              onPress={goToQueue}
-            >
-              <MaterialCommunityIcons
-                name="clipboard-list-outline"
-                size={22}
-                color={activeTab === 'queue' ? '#0f766e' : '#94a3b8'}
-              />
-              <Text style={[styles.tabText, activeTab === 'queue' && styles.activeTabText]}>Queue</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'transcription' && styles.activeTab]}
-            onPress={() => {
-              setActiveTab('transcription');
-              setActiveScreen('transcription');
-              setNoteToEdit(null);
-              setSoapVisit(null);
-            }}
-          >
-            <MaterialCommunityIcons
-              name="microphone"
-              size={22}
-              color={activeTab === 'transcription' ? '#0f766e' : '#94a3b8'}
-            />
-            <Text style={[styles.tabText, activeTab === 'transcription' && styles.activeTabText]}>New Note</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'saved' && styles.activeTab]}
-            onPress={goToSavedNotes}
-          >
-            <MaterialCommunityIcons
-              name={activeTab === 'saved' ? 'note-text' : 'note-text-outline'}
-              size={22}
-              color={activeTab === 'saved' ? '#0f766e' : '#94a3b8'}
-            />
-            <Text style={[styles.tabText, activeTab === 'saved' && styles.activeTabText]}>My Notes</Text>
-          </TouchableOpacity>
-
-        </View>
+        <BottomTabBar
+          activeTab={activeTab}
+          user={user}
+          goToHome={goToHome}
+          goToMyQueue={goToMyQueue}
+          goToQueue={goToQueue}
+          goToSavedNotes={goToSavedNotes}
+          onPressNewNote={() => {
+            setActiveTab('transcription');
+            setActiveScreen('transcription');
+            setNoteToEdit(null);
+            setSoapVisit(null);
+          }}
+        />
       )}
 
       <StatusBar style="auto" />
@@ -346,40 +379,105 @@ function MainApp() {
   );
 }
 
+// ── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
-  loadingText: { marginTop: 16, fontSize: 16, color: '#64748b' },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#64748b',
+  },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 50, paddingBottom: 16,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    // paddingTop is now dynamic via insets.top + 10
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#0f172a', letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: 13, color: '#94a3b8', marginTop: 2 },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
   logoutButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 8, paddingHorizontal: 14, backgroundColor: '#f1f5f9', borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
   },
-  logoutButtonText: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  content: { flex: 1 },
+  logoutButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  content: {
+    flex: 1,
+  },
   tabBar: {
-    flexDirection: 'row', backgroundColor: '#ffffff',
-    borderTopWidth: 1, borderTopColor: '#e2e8f0',
-    paddingBottom: 12, paddingTop: 8, paddingHorizontal: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 8,
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    // paddingBottom is now dynamic via insets.bottom in BottomTabBar component
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 12, marginHorizontal: 2 },
-  activeTab: { backgroundColor: '#f0fdf9' },
-  tabText: { fontSize: 11, fontWeight: '500', color: '#94a3b8', marginTop: 3 },
-  activeTabText: { color: '#0f766e', fontWeight: '700' },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginHorizontal: 2,
+  },
+  activeTab: {
+    backgroundColor: '#f0fdf9',
+  },
+  tabText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#94a3b8',
+    marginTop: 3,
+  },
+  activeTabText: {
+    color: '#0f766e',
+    fontWeight: '700',
+  },
 });

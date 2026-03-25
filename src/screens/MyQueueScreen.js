@@ -1,14 +1,16 @@
 // src/screens/MyQueueScreen.js
-// Doctor's personal queue — see assigned patients, do triage, open SOAP note
+// Fixed: bottom safe area inset so content clears Android nav buttons
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   ActivityIndicator, Alert, RefreshControl, Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../services/apiService';
 
 export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient }) {
+  const insets = useSafeAreaInsets();
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,9 +40,7 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
 
   const handleOpenPatient = async (visit) => {
     try {
-      // Mark as with doctor
       await apiService.markWithDoctor(visit.id);
-      // Hand off to SOAP screen with visit context
       onOpenSoapNote && onOpenSoapNote(visit);
     } catch (e) {
       Alert.alert('Error', e.message || 'Failed to open patient');
@@ -65,7 +65,6 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
 
     return (
       <View style={[styles.card, isWithMe && styles.cardActive]}>
-        {/* Queue number */}
         <View style={styles.queueNum}>
           <Text style={styles.queueNumText}>{index + 1}</Text>
         </View>
@@ -86,13 +85,11 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
             )}
           </View>
 
-          {/* Reason */}
           <View style={styles.reasonRow}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={14} color="#94a3b8" />
             <Text style={styles.reasonText} numberOfLines={2}>{item.reasonForVisit}</Text>
           </View>
 
-          {/* Triage summary if done */}
           {item.triageCompleted && item.triageData && (
             <View style={styles.triageBox}>
               <Text style={styles.triageBoxTitle}>
@@ -116,10 +113,8 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
             </View>
           )}
 
-          {/* Waiting time */}
           <Text style={styles.waitTime}>{waitingTime(item.checkedInAt)}</Text>
 
-          {/* Action buttons */}
           <View style={styles.actions}>
             {!item.triageCompleted && (
               <TouchableOpacity
@@ -154,7 +149,7 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
           <Ionicons name="arrow-back" size={20} color="#64748b" />
         </TouchableOpacity>
@@ -171,7 +166,7 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
         data={visits}
         keyExtractor={(item) => item.id}
         renderItem={renderVisit}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f766e" />}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -190,14 +185,14 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 16 : 12, paddingBottom: 12,
+    paddingHorizontal: 20, paddingBottom: 12,
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
   },
   backButton: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   headerSub: { fontSize: 12, color: '#94a3b8' },
   refreshBtn: { marginLeft: 'auto', padding: 4 },
-  list: { padding: 16, gap: 14, paddingBottom: 40 },
+  list: { padding: 16, gap: 14 },
 
   card: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16,
