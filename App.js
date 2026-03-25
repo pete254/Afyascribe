@@ -31,8 +31,8 @@ function MainApp() {
   const [activeScreen, setActiveScreen] = useState('home');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [noteToEdit, setNoteToEdit] = useState(null);
-  const [triageVisit, setTriageVisit] = useState(null); // visit passed to TriageScreen
-  const [soapVisit, setSoapVisit] = useState(null);     // visit context passed to TranscriptionScreen
+  const [triageVisit, setTriageVisit] = useState(null);
+  const [soapVisit, setSoapVisit] = useState(null);
 
   if (loading) {
     return (
@@ -68,6 +68,15 @@ function MainApp() {
   };
 
   const goBack = () => {
+    // Screens launched from the bottom tab bar (my-queue, queue) should
+    // always return to home — they have no meaningful "previous tab" state.
+    // Screens launched from within another flow (patient-history, onboard, etc.)
+    // should return to whichever tab was active before they were opened.
+    const fullScreens = ['my-queue', 'queue'];
+    if (fullScreens.includes(activeTab) || fullScreens.includes(activeScreen)) {
+      goToHome();
+      return;
+    }
     const returnTo = activeTab === 'home' ? 'home' : activeTab;
     setActiveScreen(returnTo);
     setSelectedPatient(null);
@@ -102,8 +111,17 @@ function MainApp() {
   const goToOnboard = () => setActiveScreen('onboard-patient');
   const goToPatientDirectory = () => setActiveScreen('patient-directory');
   const goToQueuePatient = () => setActiveScreen('queue-patient');
-  const goToQueue = () => setActiveScreen('queue');
-  const goToMyQueue = () => setActiveScreen('my-queue');
+
+  const goToQueue = () => {
+    setActiveScreen('queue');
+    setActiveTab('queue');
+  };
+
+  const goToMyQueue = () => {
+    setActiveScreen('my-queue');
+    setActiveTab('my-queue');
+  };
+
   const goToReports = () => setActiveScreen('reports');
 
   const goToTriage = (visit = null) => {
@@ -111,7 +129,6 @@ function MainApp() {
     setActiveScreen('triage');
   };
 
-  // When doctor taps "Open & Write SOAP" from MyQueueScreen
   const openSoapFromQueue = (visit) => {
     setSoapVisit(visit);
     setSelectedPatient(visit.patient);
@@ -222,7 +239,7 @@ function MainApp() {
           <TranscriptionScreen
             preselectedPatient={selectedPatient}
             noteToEdit={noteToEdit}
-            visitContext={soapVisit}        // ← triage data + reason pre-filled
+            visitContext={soapVisit}
             onViewPatientHistory={goToPatientHistory}
             onClearPatient={() => setSelectedPatient(null)}
             onClearNote={clearEditMode}
@@ -266,11 +283,10 @@ function MainApp() {
             <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>Home</Text>
           </TouchableOpacity>
 
-          {/* Doctors see My Queue tab; others see Queue tab */}
           {user?.role === 'doctor' ? (
             <TouchableOpacity
               style={[styles.tab, activeTab === 'my-queue' && styles.activeTab]}
-              onPress={() => { setActiveTab('my-queue'); goToMyQueue(); }}
+              onPress={goToMyQueue}
             >
               <MaterialCommunityIcons
                 name="account-clock-outline"
@@ -282,7 +298,7 @@ function MainApp() {
           ) : (
             <TouchableOpacity
               style={[styles.tab, activeTab === 'queue' && styles.activeTab]}
-              onPress={() => { setActiveTab('queue'); goToQueue(); }}
+              onPress={goToQueue}
             >
               <MaterialCommunityIcons
                 name="clipboard-list-outline"
@@ -295,7 +311,12 @@ function MainApp() {
 
           <TouchableOpacity
             style={[styles.tab, activeTab === 'transcription' && styles.activeTab]}
-            onPress={() => { setActiveTab('transcription'); setActiveScreen('transcription'); setNoteToEdit(null); setSoapVisit(null); }}
+            onPress={() => {
+              setActiveTab('transcription');
+              setActiveScreen('transcription');
+              setNoteToEdit(null);
+              setSoapVisit(null);
+            }}
           >
             <MaterialCommunityIcons
               name="microphone"
