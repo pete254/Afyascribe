@@ -486,6 +486,73 @@ async deleteInsuranceScheme(id) {
     method: 'DELETE',
   });
 }
+
+// ==================== PATIENT DOCUMENTS ENDPOINTS ====================
+
+/**
+ * Get all documents for a patient
+ */
+async getPatientDocuments(patientId) {
+  return await this.request(`/patient-documents/patient/${patientId}`);
+}
+
+/**
+ * Upload a document (image or PDF) for a patient
+ * pendingFile: { uri, name, type, size, base64 }
+ */
+async uploadPatientDocument(patientId, pendingFile, category, notes) {
+  const token = await storage.getToken();
+
+  const formData = new FormData();
+  formData.append('patientId', patientId);
+  formData.append('category', category || 'other');
+  if (notes) formData.append('notes', notes);
+
+  // Append the file
+  formData.append('file', {
+    uri: pendingFile.uri,
+    name: pendingFile.name,
+    type: pendingFile.type,
+  });
+
+  const url = `${this.baseURL}/patient-documents/upload`;
+  console.log(`🌐 Uploading document to: ${url}`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const contentType = response.headers.get('content-type');
+  let data;
+  if (contentType && contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    data = await response.text();
+  }
+
+  if (!response.ok) {
+    const errorMessage = data?.message || data?.error || data || 'Upload failed';
+    console.error(`❌ Upload Error:`, errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  console.log('✅ Document upload successful');
+  return data;
+}
+
+/**
+ * Delete a patient document
+ */
+async deletePatientDocument(documentId) {
+  return await this.request(`/patient-documents/${documentId}`, {
+    method: 'DELETE',
+  });
+}
+
 // ==================== REPORTS ENDPOINTS ====================
 
 async getReportsPatientsToday() {
@@ -522,6 +589,93 @@ getInsuranceClaimsExportUrl(from, to, scheme) {
    */
   async deleteDraft(draftId) {
     return await this.request(`/soap-notes/draft/${draftId}`, {
+      method: 'DELETE',
+    });
+  }
+
+   // ── Shared multipart upload helper ────────────────────────────────────────
+  async _uploadDocument(endpoint, fileObj, extraFields = {}) {
+    const storage = require('../utils/storage').default;
+    const token = await storage.getToken();
+ 
+    const formData = new FormData();
+ 
+    // Append extra fields
+    Object.entries(extraFields).forEach(([key, val]) => {
+      if (val !== undefined && val !== null) formData.append(key, String(val));
+    });
+ 
+    // Append file
+    formData.append('file', {
+      uri: fileObj.uri,
+      name: fileObj.name,
+      type: fileObj.type,
+    });
+ 
+    const url = `${this.baseURL}${endpoint}`;
+    console.log(`🌐 Uploading document to: ${url}`);
+ 
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+      body: formData,
+    });
+ 
+    const contentType = response.headers.get('content-type');
+    const data = contentType?.includes('application/json')
+      ? await response.json()
+      : await response.text();
+ 
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || data || 'Upload failed');
+    }
+ 
+    console.log('✅ Document upload successful');
+    return data;
+  }
+ 
+  // ── PATIENT-LEVEL document (onboarding) ───────────────────────────────────
+  async uploadPatientLevelDocument(patientId, fileObj) {
+    return this._uploadDocument('/patient-documents/patient', fileObj, {
+      patientId,
+      documentName: fileObj.documentName,
+      category:     fileObj.category || 'other',
+      notes:        fileObj.notes,
+    });
+  }
+ 
+  // ── SOAP NOTE-LEVEL document ───────────────────────────────────────────────
+  async uploadSoapNoteDocument(patientId, soapNoteId, fileObj) {
+    return this._uploadDocument('/patient-documents/soap-note', fileObj, {
+      patientId,
+      soapNoteId,
+      documentName: fileObj.documentName,
+      category:     fileObj.category || 'other',
+      notes:        fileObj.notes,
+    });
+  }
+ 
+  // ── GET: patient-level docs ────────────────────────────────────────────────
+  async getPatientLevelDocs(patientId) {
+    return this.request(`/patient-documents/patient/${patientId}`);
+  }
+ 
+  // ── GET: docs for a specific SOAP note ────────────────────────────────────
+  async getSoapNoteDocs(soapNoteId) {
+    return this.request(`/patient-documents/soap-note/${soapNoteId}`);
+  }
+ 
+  // ── GET: ALL docs for a patient (both scopes) ─────────────────────────────
+  async getAllPatientDocs(patientId) {
+    return this.request(`/patient-documents/patient/${patientId}/all`);
+  }
+ 
+  // ── DELETE a document ──────────────────────────────────────────────────────
+  async deletePatientDocument(documentId) {
+    return this.request(`/patient-documents/${documentId}`, {
       method: 'DELETE',
     });
   }

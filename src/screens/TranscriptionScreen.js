@@ -14,6 +14,7 @@ import {
 import { useAudioRecording } from '../hooks/useAudioRecording';
 import SoapSectionInput from '../components/SoapSectionInput';
 import PatientSearchBar from '../components/PatientSearchBar';
+import NoteDocumentsPanel from '../components/NoteDocumentsPanel';
 
 // ─── Draft list card ───────────────────────────────────────────────────────────
 function DraftCard({ draft, onResume, onDelete }) {
@@ -175,8 +176,8 @@ export default function TranscriptionScreen({
       if (noteToEdit.icd10Code) {
         setSelectedIcd10Code({ code: noteToEdit.icd10Code, short_description: noteToEdit.icd10Description || '' });
       }
-      // If it's a draft being resumed via noteToEdit
-      if (noteToEdit.status === 'draft') setCurrentDraftId(noteToEdit.id);
+      // Set currentDraftId for both drafts AND finalised notes being edited
+      setCurrentDraftId(noteToEdit.id);
       setActiveTab('new');
     }
   }, [noteToEdit]);
@@ -597,6 +598,48 @@ export default function TranscriptionScreen({
           isFormatting={formatingSections.management}
           placeholder="Treatment plan, medications, follow-up, patient education..."
           isCollapsed={collapsedSections.management} onToggleCollapse={() => toggleSection('management')} />
+      ),
+    },
+    {
+      id: 'attachments',
+      type: 'attachments',
+      component: (
+        currentDraftId ? (
+          <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
+            <View style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: '#e5e7eb',
+              padding: 16,
+              elevation: 2,
+            }}>
+              <NoteDocumentsPanel
+                soapNoteId={currentDraftId}
+                patientId={selectedPatient?.id}
+                editable={true}
+              />
+            </View>
+          </View>
+        ) : (
+          <View style={{
+            marginHorizontal: 16,
+            marginVertical: 8,
+            padding: 14,
+            backgroundColor: '#f8fafc',
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: '#e2e8f0',
+            borderStyle: 'dashed',
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialCommunityIcons name="paperclip" size={16} color="#94a3b8" />
+              <Text style={{ fontSize: 13, color: '#94a3b8' }}>
+                Save a draft first to attach documents
+              </Text>
+            </View>
+          </View>
+        )
       ),
     },
     {

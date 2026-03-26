@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import apiService from '../services/apiService';
+import DocumentUploadWidget, { getCategoryInfo } from '../components/DocumentUploadWidget';
 
 // ─── Kenya Counties + Sub-Counties ───────────────────────────────────────────
 const KENYA_COUNTIES = {
@@ -574,6 +575,7 @@ export default function OnboardPatientScreen({ onBack, onSuccess }) {
     medicalPlan: '', membershipNo: '',
   });
   const [nextOfKin, setNextOfKin] = useState([{ ...EMPTY_KIN }]);
+  const [pendingDocs, setPendingDocs] = useState([]);  // staged docs before patient saved
 
   const set = (key) => (val) => setForm(prev => ({ ...prev, [key]: val }));
 
@@ -591,6 +593,14 @@ export default function OnboardPatientScreen({ onBack, onSuccess }) {
   };
   const addKin = () => setNextOfKin(prev => [...prev, { ...EMPTY_KIN }]);
   const removeKin = (index) => setNextOfKin(prev => prev.filter((_, i) => i !== index));
+
+  const handleDocReady = (fileObj) => {
+    setPendingDocs((prev) => [...prev, { ...fileObj, localId: Date.now().toString() }]);
+  };
+
+  const handleDiscardStagedDoc = (localId) => {
+    setPendingDocs((prev) => prev.filter((d) => d.localId !== localId));
+  };
 
   const validate = () => {
     if (!form.firstName.trim()) return 'First name is required';
@@ -636,12 +646,23 @@ export default function OnboardPatientScreen({ onBack, onSuccess }) {
         nextOfKin: nextOfKin.filter(k => k.firstName.trim() || k.lastName.trim()),
       };
 
-      await apiService.createPatient(payload);
+      const createdPatient = await apiService.createPatient(payload);
+
+      // Upload any staged documents
+      if (pendingDocs.length > 0 && createdPatient?.id) {
+        for (const doc of pendingDocs) {
+          try {
+            await apiService.uploadPatientLevelDocument(createdPatient.id, doc);
+          } catch (e) {
+            console.error('Doc upload failed:', e.message);
+          }
+        }
+      }
 
       Alert.alert(
         '✅ Patient Registered',
         `${form.firstName} ${form.lastName} has been successfully onboarded.`,
-        [{ text: 'OK', onPress: () => onSuccess && onSuccess() }]
+        [{ text: 'OK', onPress: () => { setPendingDocs([]); onSuccess && onSuccess(); } }]
       );
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to register patient. Please try again.');
@@ -728,6 +749,62 @@ export default function OnboardPatientScreen({ onBack, onSuccess }) {
           <Ionicons name="add-circle-outline" size={18} color="#7c3aed" />
           <Text style={styles.addKinText}>Add Another Next of Kin</Text>
         </TouchableOpacity>
+
+        {/* ── Documents ── */}
+        <View style={{ marginTop: 8 }}>
+          <SectionHeader title="Documents" icon="file-document-multiple-outline" color="#0891b2" />
+
+          {/* Staged docs list */}
+          {pendingDocs.length > 0 && (
+            <View style={{ gap: 8, marginBottom: 12 }}>
+              {pendingDocs.map((doc) => {
+                const cat = getCategoryInfo(doc.category);
+                return (
+                  <View
+                    key={doc.localId}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#f0fdf4',
+                      borderRadius: 10,
+                      padding: 12,
+                      borderWidth: 1,
+                      borderColor: '#bbf7d0',
+                      gap: 10,
+                    }}
+                  >
+                    <View style={{
+                      width: 36, height: 36, borderRadius: 8,
+                      backgroundColor: cat.color + '20',
+                      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <Ionicons name={cat.icon} size={18} color={cat.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: '#1e293b' }} numberOfLines={1}>
+                        {doc.documentName}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>{cat.label}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleDiscardStagedDoc(doc.localId)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle" size={20} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Upload widget */}
+          <DocumentUploadWidget onFileReady={handleDocReady} />
+
+          <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 8, marginLeft: 4 }}>
+            Documents are uploaded after the patient is registered.
+          </Text>
+        </View>
 
         {/* ── Facility Info ── */}
         <SectionHeader title="Facility Information" icon="hospital-building" color="#0f766e" />
