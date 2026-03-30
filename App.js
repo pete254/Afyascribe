@@ -13,6 +13,7 @@ import PatientHistoryScreen from './src/screens/PatientHistoryScreen';
 import PatientDirectoryScreen from './src/screens/PatientDirectoryScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import OnboardPatientScreen from './src/screens/OnboardPatientScreen';
+import ServiceCatalogScreen from './src/screens/ServiceCatalogScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
@@ -213,11 +214,13 @@ function MainApp() {
 
   const goToReports = () => setActiveScreen('reports');
 
+  const goToServiceCatalog = () => setActiveScreen('service-catalog');
+
   const goToTriage = (visit = null) => {
     setTriageVisit(visit);
     setActiveScreen('triage');
   };
-
+  
   const openSoapFromQueue = (visit) => {
     setSoapVisit(visit);
     setSelectedPatient(visit.patient);
@@ -230,7 +233,7 @@ function MainApp() {
   // ── Tab bar visibility ───────────────────────────────────────────────────────
   const hideTabBar = [
     'patient-history', 'onboard-patient', 'patient-directory',
-    'queue-patient', 'queue', 'my-queue', 'triage', 'reports',
+    'queue-patient', 'queue', 'my-queue', 'triage', 'reports', 'service-catalog'
   ].includes(activeScreen);
 
   // ── Screen renderer ──────────────────────────────────────────────────────────
@@ -248,6 +251,7 @@ function MainApp() {
             onViewMyQueue={goToMyQueue}
             onViewTriageQueue={() => goToTriage(null)}
             onViewReports={goToReports}
+            onViewServiceCatalog={goToServiceCatalog}
           />
         );
 
@@ -289,6 +293,13 @@ function MainApp() {
           <OnboardPatientScreen
             onBack={goBack}
             onSuccess={goToHome}
+          />
+        );
+
+      case 'service-catalog':
+        return (
+          <ServiceCatalogScreen
+            onBack={goBack}
           />
         );
 

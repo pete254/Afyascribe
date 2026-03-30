@@ -1,7 +1,9 @@
 // src/screens/QueuePatientScreen.js
-// Receptionist checks in a patient, assigns a doctor, and records the bill.
-// Patient is queued with status CHECKED_IN — they advance to WAITING_FOR_DOCTOR
-// only after the receptionist marks their bill as paid.
+// Changes:
+//   1. Reason for visit → dropdown (New Patient / Returning Patient / Referral)
+//   2. Added placeholders to all input fields
+//   3. Payment inputs have placeholder text
+
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -9,6 +11,24 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import apiService from '../services/apiService';
+
+const VISIT_REASONS = [
+  {
+    value: 'New Patient',
+    label: '🆕  New Patient',
+    sub: 'First visit to this facility',
+  },
+  {
+    value: 'Returning Patient',
+    label: '🔄  Returning Patient',
+    sub: 'Follow-up or repeat visit',
+  },
+  {
+    value: 'Referral / Scheduled Appointment',
+    label: '📋  Referral / Scheduled Appointment',
+    sub: 'Referred or has a pre-booked slot',
+  },
+];
 
 const SERVICE_TYPES = [
   { value: 'consultation', label: 'Consultation' },
@@ -24,6 +44,7 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [reasonForVisit, setReasonForVisit] = useState('');
+  const [reasonPickerVisible, setReasonPickerVisible] = useState(false);
   const [doctors, setDoctors] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -90,10 +111,9 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
 
   const handleSubmit = async () => {
     if (!selectedPatient) { Alert.alert('Missing', 'Please select a patient'); return; }
-    if (!reasonForVisit.trim()) { Alert.alert('Missing', 'Please enter the reason for visit'); return; }
+    if (!reasonForVisit) { Alert.alert('Missing', 'Please select the reason for visit'); return; }
     if (!selectedDoctor) { Alert.alert('Missing', 'Please assign a doctor'); return; }
 
-    // Amount validation — cash requires a value; insurance can be 0 (copay)
     let parsedAmount = 0;
     if (paymentMode === 'cash') {
       parsedAmount = parseFloat(amount);
@@ -111,14 +131,12 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
 
     setSubmitting(true);
     try {
-      // Step 1 — Check in patient (visit starts as CHECKED_IN)
       const visit = await apiService.checkInPatient(
         selectedPatient.id,
-        reasonForVisit.trim(),
+        reasonForVisit,
         selectedDoctor.id,
       );
 
-      // Step 2 — Create billing record
       await apiService.createBill(
         visit.id,
         serviceType,
@@ -155,7 +173,7 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
       <Text style={styles.screenTitle}>Queue Patient</Text>
       <Text style={styles.screenSubtitle}>Check in, assign a doctor, and record the bill</Text>
 
-      {/* ── Step 1 — Find Patient ─────────────────────────────────────────── */}
+      {/* ── Step 1 — Find Patient ─────────────────────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>
           <MaterialCommunityIcons name="magnify" size={15} color="#0f766e" /> Step 1 — Find Patient
@@ -165,7 +183,8 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
           <Ionicons name="search" size={18} color="#94a3b8" style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name or patient ID..."
+            placeholder="Search by name or patient ID…"
+            placeholderTextColor="#94a3b8"
             value={searchQuery}
             onChangeText={handleSearch}
             autoCapitalize="words"
@@ -205,22 +224,29 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
         )}
       </View>
 
-      {/* ── Step 2 — Reason for Visit ─────────────────────────────────────── */}
+      {/* ── Step 2 — Reason for Visit (Dropdown) ─────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>
           <MaterialCommunityIcons name="clipboard-text-outline" size={15} color="#0f766e" /> Step 2 — Reason for Visit
         </Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="e.g. Chest pain, follow-up, fever..."
-          value={reasonForVisit}
-          onChangeText={setReasonForVisit}
-          multiline
-          numberOfLines={3}
-        />
+
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setReasonPickerVisible(true)}
+        >
+          <MaterialCommunityIcons
+            name="clipboard-list-outline"
+            size={18}
+            color={reasonForVisit ? '#0f766e' : '#94a3b8'}
+          />
+          <Text style={[styles.pickerText, reasonForVisit && styles.pickerTextSelected]}>
+            {reasonForVisit || 'Select reason for visit…'}
+          </Text>
+          <Ionicons name="chevron-down" size={18} color="#94a3b8" />
+        </TouchableOpacity>
       </View>
 
-      {/* ── Step 3 — Assign Doctor ────────────────────────────────────────── */}
+      {/* ── Step 3 — Assign Doctor ────────────────────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>
           <MaterialCommunityIcons name="doctor" size={15} color="#0f766e" /> Step 3 — Assign Doctor
@@ -229,13 +255,13 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
         <TouchableOpacity style={styles.pickerButton} onPress={() => setDoctorPickerVisible(true)}>
           <MaterialCommunityIcons name="doctor" size={18} color={selectedDoctor ? '#0f766e' : '#94a3b8'} />
           <Text style={[styles.pickerText, selectedDoctor && styles.pickerTextSelected]}>
-            {selectedDoctor ? `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName}` : 'Select a doctor...'}
+            {selectedDoctor ? `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName}` : 'Select a doctor…'}
           </Text>
           <Ionicons name="chevron-down" size={18} color="#94a3b8" />
         </TouchableOpacity>
       </View>
 
-      {/* ── Step 4 — Payment Mode ─────────────────────────────────────────── */}
+      {/* ── Step 4 — Billing ──────────────────────────────────────── */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>
           <MaterialCommunityIcons name="cash-register" size={15} color="#0f766e" /> Step 4 — Billing
@@ -260,7 +286,7 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
           ))}
         </View>
 
-        {/* Insurance scheme picker — shown for insurance + split */}
+        {/* Insurance scheme picker */}
         {(paymentMode === 'insurance' || paymentMode === 'split') && (
           <>
             <TouchableOpacity
@@ -270,14 +296,14 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
               <MaterialCommunityIcons name="shield-check-outline" size={18}
                 color={selectedScheme ? '#0f766e' : '#94a3b8'} />
               <Text style={[styles.pickerText, selectedScheme && styles.pickerTextSelected]}>
-                {selectedScheme ? selectedScheme.name : 'Select insurance scheme...'}
+                {selectedScheme ? selectedScheme.name : 'Select insurance scheme…'}
               </Text>
               <Ionicons name="chevron-down" size={18} color="#94a3b8" />
             </TouchableOpacity>
 
             {insuranceSchemes.length === 0 && (
               <Text style={styles.sectionHint}>
-                No schemes registered. Ask your facility admin to add insurance schemes in settings.
+                No schemes registered. Ask your facility admin to add insurance schemes.
               </Text>
             )}
           </>
@@ -292,23 +318,25 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
 
         <TextInput
           style={styles.textArea}
-          placeholder="Service description (optional)"
+          placeholder="Service description — e.g. 'CBC + Malaria RDT' (optional)"
+          placeholderTextColor="#94a3b8"
           value={serviceDescription}
           onChangeText={setServiceDescription}
           multiline
           numberOfLines={2}
         />
 
-        {/* Amount field — label changes based on mode */}
+        {/* Amount */}
         <TextInput
           style={styles.amountInput}
           placeholder={
             paymentMode === 'insurance'
-              ? 'Total amount (covered by insurer) in KES'
+              ? 'Total amount covered by insurer (KES) e.g. 1500'
               : paymentMode === 'split'
-              ? 'Patient copay amount in KES'
-              : 'Amount in KES'
+              ? 'Patient copay amount (KES) e.g. 300'
+              : 'Consultation / service fee (KES) e.g. 500'
           }
+          placeholderTextColor="#94a3b8"
           value={amount}
           onChangeText={setAmount}
           keyboardType="numeric"
@@ -316,10 +344,9 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
 
         {paymentMode === 'split' && (
           <Text style={styles.sectionHint}>
-            Enter the amount the patient pays now. The remainder goes to the insurer as a claim.
+            Enter the amount the patient pays now. The remainder is billed to the insurer.
           </Text>
         )}
-
         {paymentMode === 'insurance' && (
           <Text style={styles.sectionHint}>
             Patient will proceed to the doctor immediately — no cash collection needed.
@@ -327,7 +354,7 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
         )}
       </View>
 
-      {/* ── Submit ────────────────────────────────────────────────────────── */}
+      {/* ── Submit ────────────────────────────────────────────────── */}
       <TouchableOpacity
         style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
         onPress={handleSubmit}
@@ -343,7 +370,33 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
         )}
       </TouchableOpacity>
 
-      {/* ── Doctor Picker Modal ───────────────────────────────────────────── */}
+      {/* ── Reason for Visit Picker Modal ─────────────────────────── */}
+      <Modal visible={reasonPickerVisible} transparent animationType="slide">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setReasonPickerVisible(false)}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Reason for Visit</Text>
+            {VISIT_REASONS.map((r) => (
+              <TouchableOpacity
+                key={r.value}
+                style={[styles.reasonOption, reasonForVisit === r.value && styles.reasonOptionActive]}
+                onPress={() => { setReasonForVisit(r.value); setReasonPickerVisible(false); }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.reasonOptionLabel, reasonForVisit === r.value && styles.reasonOptionLabelActive]}>
+                    {r.label}
+                  </Text>
+                  <Text style={styles.reasonOptionSub}>{r.sub}</Text>
+                </View>
+                {reasonForVisit === r.value && (
+                  <Ionicons name="checkmark-circle" size={20} color="#0f766e" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Doctor Picker Modal ───────────────────────────────────── */}
       <Modal visible={doctorPickerVisible} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setDoctorPickerVisible(false)}>
           <View style={styles.modalSheet}>
@@ -369,7 +422,7 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Service Type Picker Modal ─────────────────────────────────────── */}
+      {/* ── Service Type Picker Modal ─────────────────────────────── */}
       <Modal visible={servicePickerVisible} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setServicePickerVisible(false)}>
           <View style={styles.modalSheet}>
@@ -390,7 +443,7 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Insurance Scheme Picker Modal ─────────────────────────────────── */}
+      {/* ── Insurance Scheme Picker Modal ─────────────────────────── */}
       <Modal visible={schemePickerVisible} transparent animationType="slide">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1}
           onPress={() => setSchemePickerVisible(false)}>
@@ -433,13 +486,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4 }, android: { elevation: 1 } }),
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4 },
+      android: { elevation: 1 },
+    }),
   },
   sectionLabel: { fontSize: 13, fontWeight: '600', color: '#0f766e', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionHint: { fontSize: 13, color: '#64748b', marginBottom: 12, lineHeight: 18, marginTop: 8 },
-
-  fieldLabel: { fontSize: 13, fontWeight: '500', color: '#374151', marginTop: 12, marginBottom: 6 },
-  optional: { color: '#94a3b8', fontWeight: '400' },
+  sectionHint: { fontSize: 13, color: '#64748b', marginTop: 8, lineHeight: 18 },
 
   searchBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, height: 44, backgroundColor: '#f8fafc' },
   searchInput: { flex: 1, fontSize: 15, color: '#0f172a' },
@@ -455,9 +508,7 @@ const styles = StyleSheet.create({
   selectedName: { fontSize: 14, fontWeight: '600', color: '#166534' },
   selectedMeta: { fontSize: 12, color: '#16a34a', marginTop: 2 },
 
-  textArea: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 15, color: '#0f172a', minHeight: 80, textAlignVertical: 'top', marginBottom: 10 },
-
-  input: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 15, color: '#0f172a', backgroundColor: '#f8fafc' },
+  textArea: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 15, color: '#0f172a', minHeight: 70, textAlignVertical: 'top', marginBottom: 10 },
 
   pickerButton: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, height: 44, backgroundColor: '#f8fafc', gap: 8, marginBottom: 10 },
   pickerText: { flex: 1, fontSize: 15, color: '#94a3b8' },
@@ -466,6 +517,16 @@ const styles = StyleSheet.create({
   submitButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f766e', borderRadius: 12, height: 52, marginTop: 8 },
   submitButtonDisabled: { opacity: 0.6 },
   submitText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+  // Reason option rows
+  reasonOption: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 14,
+    paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  reasonOptionActive: { backgroundColor: '#f0fdf4' },
+  reasonOptionLabel: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
+  reasonOptionLabelActive: { color: '#0f766e' },
+  reasonOptionSub: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
 
   // Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
@@ -478,15 +539,11 @@ const styles = StyleSheet.create({
 
   // Payment mode selector
   payModeRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  payModeBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5,
-    borderColor: '#e2e8f0', alignItems: 'center',
-  },
+  payModeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center' },
   payModeBtnActive: { borderColor: '#0f766e', backgroundColor: '#f0fdf9' },
   payModeTxt: { fontSize: 13, color: '#64748b', fontWeight: '500' },
   payModeTxtActive: { color: '#0f766e', fontWeight: '700' },
 
-  // Amount input
   amountInput: {
     borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,
@@ -494,15 +551,9 @@ const styles = StyleSheet.create({
   },
 
   // Insurance scheme picker modal
-  pickerModal: {
-    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, maxHeight: '70%',
-  },
+  pickerModal: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },
   pickerModalTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b', marginBottom: 16 },
-  pickerOption: {
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
+  pickerOption: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pickerOptionText: { fontSize: 15, color: '#1e293b', fontWeight: '500' },
   pickerOptionSub: { fontSize: 12, color: '#94a3b8' },
 });

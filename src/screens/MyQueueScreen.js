@@ -1,5 +1,6 @@
 // src/screens/MyQueueScreen.js
-// Fixed: bottom safe area inset so content clears Android nav buttons
+// UPDATED: Embedded VisitBillingPanel so doctors can add/edit bills during consultation
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
@@ -8,12 +9,15 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../services/apiService';
+import VisitBillingPanel from '../components/VisitBillingPanel';
 
 export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient }) {
   const insets = useSafeAreaInsets();
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Track which visit has billing expanded
+  const [expandedBillingVisitId, setExpandedBillingVisitId] = useState(null);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -59,9 +63,14 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
     return `${Math.floor(mins / 60)}h ${mins % 60}m waiting`;
   };
 
+  const toggleBilling = (visitId) => {
+    setExpandedBillingVisitId(prev => prev === visitId ? null : visitId);
+  };
+
   const renderVisit = ({ item, index }) => {
     const patient = item.patient;
     const isWithMe = item.status === 'with_doctor';
+    const isBillingExpanded = expandedBillingVisitId === item.id;
 
     return (
       <View style={[styles.card, isWithMe && styles.cardActive]}>
@@ -70,6 +79,7 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
         </View>
 
         <View style={{ flex: 1 }}>
+          {/* Patient header */}
           <View style={styles.cardTop}>
             <View style={styles.avatarBox}>
               <Text style={styles.avatarText}>{patient?.firstName?.[0]}{patient?.lastName?.[0]}</Text>
@@ -85,11 +95,13 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
             )}
           </View>
 
+          {/* Reason for visit */}
           <View style={styles.reasonRow}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={14} color="#94a3b8" />
             <Text style={styles.reasonText} numberOfLines={2}>{item.reasonForVisit}</Text>
           </View>
 
+          {/* Triage vitals */}
           {item.triageCompleted && item.triageData && (
             <View style={styles.triageBox}>
               <Text style={styles.triageBoxTitle}>
@@ -115,6 +127,39 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
 
           <Text style={styles.waitTime}>{waitingTime(item.checkedInAt)}</Text>
 
+          {/* ── BILLING SECTION ── */}
+          <View style={styles.billingSectionContainer}>
+            <TouchableOpacity
+              style={[styles.billingToggle, isBillingExpanded && styles.billingToggleActive]}
+              onPress={() => toggleBilling(item.id)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name="cash-register"
+                size={15}
+                color={isBillingExpanded ? '#0f766e' : '#64748b'}
+              />
+              <Text style={[styles.billingToggleText, isBillingExpanded && styles.billingToggleTextActive]}>
+                {isBillingExpanded ? 'Hide Bills' : 'Manage Bills'}
+              </Text>
+              <Ionicons
+                name={isBillingExpanded ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={isBillingExpanded ? '#0f766e' : '#94a3b8'}
+              />
+            </TouchableOpacity>
+
+            {isBillingExpanded && (
+              <View style={styles.billingPanelWrapper}>
+                <VisitBillingPanel
+                  visit={item}
+                  onBillsChanged={loadQueue}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Action buttons */}
           <View style={styles.actions}>
             {!item.triageCompleted && (
               <TouchableOpacity
@@ -228,7 +273,26 @@ const styles = StyleSheet.create({
   noTriageBox: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   noTriageText: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
 
-  waitTime: { fontSize: 12, color: '#94a3b8', marginBottom: 12 },
+  waitTime: { fontSize: 12, color: '#94a3b8', marginBottom: 10 },
+
+  // ── Billing section ───────────────────────────────────────────────────────
+  billingSectionContainer: { marginBottom: 12 },
+  billingToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingVertical: 9, paddingHorizontal: 12,
+    backgroundColor: '#f8fafc', borderRadius: 10,
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  billingToggleActive: {
+    backgroundColor: '#f0fdf4', borderColor: '#bbf7d0',
+  },
+  billingToggleText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#64748b' },
+  billingToggleTextActive: { color: '#0f766e' },
+  billingPanelWrapper: {
+    marginTop: 8, padding: 14,
+    backgroundColor: '#fafafa', borderRadius: 12,
+    borderWidth: 1, borderColor: '#e2e8f0',
+  },
 
   actions: { flexDirection: 'row', gap: 8 },
   triageBtn: {

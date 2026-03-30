@@ -1,4 +1,9 @@
-// src/screens/TranscriptionScreen.js - COMPLETE WITH LAB, IMAGING, ICD-10 & DRAFTS
+// src/screens/TranscriptionScreen.js
+// Changes vs previous version:
+//   - Import DocumentUploadWidget + getCategoryInfo
+//   - Added pendingDocs state for new-note attachments
+//   - Attachments section always shows upload widget (no "save draft first" gate)
+//   - After finalise/save, pending docs are uploaded automatically
 import React, { useState, useEffect, useCallback } from 'react';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import {
@@ -15,6 +20,7 @@ import { useAudioRecording } from '../hooks/useAudioRecording';
 import SoapSectionInput from '../components/SoapSectionInput';
 import PatientSearchBar from '../components/PatientSearchBar';
 import NoteDocumentsPanel from '../components/NoteDocumentsPanel';
+import DocumentUploadWidget, { getCategoryInfo } from '../components/DocumentUploadWidget';
 
 // ─── Draft list card ───────────────────────────────────────────────────────────
 function DraftCard({ draft, onResume, onDelete }) {
@@ -80,10 +86,9 @@ export default function TranscriptionScreen({
   onClearPatient,
   onClearNote,
 }) {
-  // ── Tab ────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('new');
 
-  // ── Form state ─────────────────────────────────────────────────────────────
+  // Form state
   const [selectedPatient, setSelectedPatient] = useState(preselectedPatient || null);
   const [symptoms, setSymptoms] = useState('');
   const [physicalExamination, setPhysicalExamination] = useState('');
@@ -105,11 +110,18 @@ export default function TranscriptionScreen({
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isFormattingAll, setIsFormattingAll] = useState(false);
 
-  // ── Draft state ────────────────────────────────────────────────────────────
+  // Draft state
   const [currentDraftId, setCurrentDraftId] = useState(null);
   const [drafts, setDrafts] = useState([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [draftsRefreshing, setDraftsRefreshing] = useState(false);
+
+  // ── Pending docs for brand-new notes (uploaded after save) ─────────────────
+  const [pendingDocs, setPendingDocs] = useState([]);
+
+  const removePendingDoc = (localId) => {
+    setPendingDocs(prev => prev.filter(d => d.localId !== localId));
+  };
 
   const {
     isRecording,
@@ -120,53 +132,42 @@ export default function TranscriptionScreen({
     clearTranscription,
   } = useAudioRecording();
 
-  // ── Sync preselectedPatient ────────────────────────────────────────────────
+  // Sync preselectedPatient
   useEffect(() => {
     if (preselectedPatient) setSelectedPatient(preselectedPatient);
   }, [preselectedPatient]);
 
-  // ── Handle transcription completion ───────────────────────────────────────
+  // Handle transcription completion
   useEffect(() => {
-    console.log('📝 Transcription useEffect triggered:', {
-      transcription, isRecording, isTranscribing, activeSection: activeRecordingSection,
-    });
-
     if (transcription && transcription.trim() && activeRecordingSection) {
-      console.log(`✅ Adding transcription to ${activeRecordingSection}: "${transcription}"`);
-
       switch (activeRecordingSection) {
         case 'symptoms':
-          setSymptoms((prev) => { const v = prev ? `${prev}\n\n${transcription}` : transcription; console.log('✅ Symptoms updated'); return v; });
+          setSymptoms(prev => prev ? `${prev}\n\n${transcription}` : transcription);
           break;
         case 'physicalExamination':
-          setPhysicalExamination((prev) => { const v = prev ? `${prev}\n\n${transcription}` : transcription; console.log('✅ Physical Examination updated'); return v; });
+          setPhysicalExamination(prev => prev ? `${prev}\n\n${transcription}` : transcription);
           break;
         case 'labInvestigations':
-          setLabInvestigations((prev) => { const v = prev ? `${prev}\n\n${transcription}` : transcription; console.log('✅ Lab Investigations updated'); return v; });
+          setLabInvestigations(prev => prev ? `${prev}\n\n${transcription}` : transcription);
           break;
         case 'imaging':
-          setImaging((prev) => { const v = prev ? `${prev}\n\n${transcription}` : transcription; console.log('✅ Imaging updated'); return v; });
+          setImaging(prev => prev ? `${prev}\n\n${transcription}` : transcription);
           break;
         case 'diagnosis':
-          setDiagnosis((prev) => { const v = prev ? `${prev}\n\n${transcription}` : transcription; console.log('✅ Diagnosis updated'); return v; });
+          setDiagnosis(prev => prev ? `${prev}\n\n${transcription}` : transcription);
           break;
         case 'management':
-          setManagement((prev) => { const v = prev ? `${prev}\n\n${transcription}` : transcription; console.log('✅ Management updated'); return v; });
+          setManagement(prev => prev ? `${prev}\n\n${transcription}` : transcription);
           break;
-        default:
-          console.warn('❌ Unknown section:', activeRecordingSection);
       }
-
-      console.log('🧹 Clearing activeRecordingSection and transcription');
       setActiveRecordingSection(null);
       clearTranscription();
     }
   }, [transcription, activeRecordingSection]);
 
-  // ── Handle noteToEdit ──────────────────────────────────────────────────────
+  // Handle noteToEdit
   useEffect(() => {
     if (noteToEdit) {
-      console.log('📝 noteToEdit detected, populating fields:', noteToEdit);
       setSymptoms(noteToEdit.symptoms || '');
       setPhysicalExamination(noteToEdit.physicalExamination || '');
       setLabInvestigations(noteToEdit.labInvestigations || '');
@@ -176,13 +177,12 @@ export default function TranscriptionScreen({
       if (noteToEdit.icd10Code) {
         setSelectedIcd10Code({ code: noteToEdit.icd10Code, short_description: noteToEdit.icd10Description || '' });
       }
-      // Set currentDraftId for both drafts AND finalised notes being edited
       setCurrentDraftId(noteToEdit.id);
       setActiveTab('new');
     }
   }, [noteToEdit]);
 
-  // ── Load drafts ────────────────────────────────────────────────────────────
+  // Load drafts
   const loadDrafts = useCallback(async (silent = false) => {
     if (!silent) setDraftsLoading(true);
     try {
@@ -190,7 +190,7 @@ export default function TranscriptionScreen({
       const data = await apiService.getMyDrafts();
       setDrafts(data ?? []);
     } catch (e) {
-      console.error('❌ Failed to load drafts:', e);
+      console.error('Failed to load drafts:', e);
     } finally {
       setDraftsLoading(false);
       setDraftsRefreshing(false);
@@ -201,7 +201,7 @@ export default function TranscriptionScreen({
     if (activeTab === 'drafts') loadDrafts();
   }, [activeTab]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // Helpers
   const getSectionKey = (title) => {
     if (title.includes('Symptoms')) return 'symptoms';
     if (title.includes('Physical')) return 'physicalExamination';
@@ -216,7 +216,7 @@ export default function TranscriptionScreen({
     setSymptoms(''); setPhysicalExamination(''); setLabInvestigations('');
     setImaging(''); setDiagnosis(''); setManagement('');
     setSelectedIcd10Code(null); setCurrentDraftId(null);
-    setSelectedPatient(null);
+    setSelectedPatient(null); setPendingDocs([]);
     onClearPatient?.();
     onClearNote?.();
   };
@@ -230,24 +230,14 @@ export default function TranscriptionScreen({
     }
   };
 
-  const handleClearPatient = () => {
-    setSelectedPatient(null);
-    if (onClearPatient) onClearPatient();
-  };
-
-  const handleIcd10Select = (code) => {
-    console.log('📋 ICD-10 code selected:', code);
-    setSelectedIcd10Code(code);
-  };
+  const handleIcd10Select = (code) => setSelectedIcd10Code(code);
 
   const toggleSection = (sectionName) => {
-    setCollapsedSections((prev) => ({ ...prev, [sectionName]: !prev[sectionName] }));
+    setCollapsedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
   };
 
   const handleStartRecording = async (sectionName) => {
-    console.log(`🎙️ START RECORDING for section: ${sectionName}`);
     if (isRecording) {
-      console.log('⚠️ Already recording, stopping...');
       await toggleRecording();
     } else {
       setActiveRecordingSection(sectionName);
@@ -256,38 +246,24 @@ export default function TranscriptionScreen({
   };
 
   const handleClearSection = (sectionTitle, setSectionText) => {
-    Alert.alert(
-      'Clear Section',
-      `Are you sure you want to clear ${sectionTitle}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: () => setSectionText('') },
-      ]
-    );
+    Alert.alert('Clear Section', `Clear ${sectionTitle}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => setSectionText('') },
+    ]);
   };
 
   const handleFormatSection = async (sectionTitle, sectionText, setSectionText) => {
-    if (!sectionText.trim()) {
-      Alert.alert('Error', `Please add some text to ${sectionTitle} before formatting`);
-      return;
-    }
+    if (!sectionText.trim()) { Alert.alert('Error', `Add text to ${sectionTitle} first`); return; }
     const sectionKey = getSectionKey(sectionTitle);
-    setFormatingSections((prev) => ({ ...prev, [sectionKey]: true }));
+    setFormatingSections(prev => ({ ...prev, [sectionKey]: true }));
     try {
       const { formatSoapSection } = require('../services/soapFormatter');
-      console.log(`🔄 Formatting ${sectionTitle}...`);
       const formatted = await formatSoapSection(sectionTitle, sectionText);
-      if (formatted && formatted.trim()) {
-        setSectionText(formatted);
-        console.log(`✅ ${sectionTitle} formatted successfully`);
-      } else {
-        console.log(`⚠️ Formatting returned empty for ${sectionTitle}`);
-      }
+      if (formatted && formatted.trim()) setSectionText(formatted);
     } catch (error) {
-      console.error(`❌ Format error for ${sectionTitle}:`, error);
       Alert.alert('Error', `Failed to format: ${error.message}`);
     } finally {
-      setFormatingSections((prev) => ({ ...prev, [sectionKey]: false }));
+      setFormatingSections(prev => ({ ...prev, [sectionKey]: false }));
     }
   };
 
@@ -299,55 +275,53 @@ export default function TranscriptionScreen({
       { title: 'Imaging', text: imaging, setter: setImaging, key: 'imaging' },
       { title: 'Diagnosis', text: diagnosis, setter: setDiagnosis, key: 'diagnosis' },
       { title: 'Management', text: management, setter: setManagement, key: 'management' },
-    ].filter(section => section.text.trim());
+    ].filter(s => s.text.trim());
 
-    if (sectionsWithContent.length === 0) {
-      Alert.alert('Error', 'Please add content to at least one section before formatting');
-      return;
-    }
+    if (sectionsWithContent.length === 0) { Alert.alert('Error', 'Add content to at least one section first'); return; }
 
     setIsFormattingAll(true);
     try {
       const { formatSoapSection } = require('../services/soapFormatter');
-      console.log(`🔄 Formatting ${sectionsWithContent.length} sections...`);
-
       for (const section of sectionsWithContent) {
-        setFormatingSections((prev) => ({ ...prev, [section.key]: true }));
+        setFormatingSections(prev => ({ ...prev, [section.key]: true }));
         try {
           const formatted = await formatSoapSection(section.title, section.text);
-          if (formatted && formatted.trim()) {
-            section.setter(formatted);
-            console.log(`✅ ${section.title} formatted successfully`);
-          }
-        } catch (error) {
-          console.error(`❌ Failed to format ${section.title}:`, error);
-        } finally {
-          setFormatingSections((prev) => ({ ...prev, [section.key]: false }));
-        }
+          if (formatted && formatted.trim()) section.setter(formatted);
+        } catch (e) { console.error(`Failed to format ${section.title}:`, e); }
+        finally { setFormatingSections(prev => ({ ...prev, [section.key]: false })); }
       }
-
-      Alert.alert('Success', `Formatted ${sectionsWithContent.length} section(s) with AI`);
+      Alert.alert('Done', `Formatted ${sectionsWithContent.length} section(s) with AI`);
     } catch (error) {
-      console.error('❌ Format all error:', error);
-      Alert.alert('Error', `Failed to format all sections: ${error.message}`);
+      Alert.alert('Error', `Format all failed: ${error.message}`);
     } finally {
       setIsFormattingAll(false);
     }
   };
 
-  // ── Save Draft ─────────────────────────────────────────────────────────────
+  // ── Helper: upload pending docs after a note is saved ─────────────────────
+  const uploadPendingDocs = async (patientId, soapNoteId) => {
+    if (pendingDocs.length === 0) return;
+    const apiService = require('../services/apiService').default;
+    for (const doc of pendingDocs) {
+      try {
+        await apiService.uploadSoapNoteDocument(patientId, soapNoteId, doc);
+      } catch (e) {
+        console.error(`Failed to upload pending doc "${doc.documentName}":`, e.message);
+      }
+    }
+    setPendingDocs([]);
+  };
+
+  // Save Draft
   const handleSaveDraft = async () => {
     if (!selectedPatient) { Alert.alert('Missing', 'Please select a patient first'); return; }
     setIsSavingDraft(true);
     try {
       const apiService = require('../services/apiService').default;
       const fields = {
-        symptoms: symptoms.trim(),
-        physicalExamination: physicalExamination.trim(),
-        labInvestigations: labInvestigations.trim(),
-        imaging: imaging.trim(),
-        diagnosis: diagnosis.trim(),
-        icd10Code: selectedIcd10Code?.code || null,
+        symptoms: symptoms.trim(), physicalExamination: physicalExamination.trim(),
+        labInvestigations: labInvestigations.trim(), imaging: imaging.trim(),
+        diagnosis: diagnosis.trim(), icd10Code: selectedIcd10Code?.code || null,
         icd10Description: selectedIcd10Code?.short_description || null,
         management: management.trim(),
       };
@@ -357,13 +331,12 @@ export default function TranscriptionScreen({
       } else {
         saved = await apiService.createDraft(selectedPatient.id, fields);
         setCurrentDraftId(saved.id);
+        // Upload any pending docs now that we have a draftId
+        if (pendingDocs.length > 0) {
+          await uploadPendingDocs(selectedPatient.id, saved.id);
+        }
       }
-      Alert.alert(
-        'Draft Saved 📝',
-        `Draft saved for ${selectedPatient.firstName} ${selectedPatient.lastName}. Resume it from the Drafts tab.`,
-        [{ text: 'OK' }],
-      );
-      console.log('📝 Draft saved:', saved.id);
+      Alert.alert('Draft Saved 📝', `Draft saved for ${selectedPatient.firstName} ${selectedPatient.lastName}.`, [{ text: 'OK' }]);
     } catch (e) {
       Alert.alert('Error', `Failed to save draft: ${e.message}`);
     } finally {
@@ -371,15 +344,12 @@ export default function TranscriptionScreen({
     }
   };
 
-  // ── Save Final ─────────────────────────────────────────────────────────────
+  // Save Final
   const handleSaveAll = async () => {
-    console.log('💾 Save button pressed');
     if (!selectedPatient) { Alert.alert('Error', 'Please select a patient first'); return; }
-
-    const hasContent =
-      symptoms.trim() || physicalExamination.trim() || labInvestigations.trim() ||
+    const hasContent = symptoms.trim() || physicalExamination.trim() || labInvestigations.trim() ||
       imaging.trim() || diagnosis.trim() || management.trim();
-    if (!hasContent) { Alert.alert('Error', 'Please add content to at least one section'); return; }
+    if (!hasContent) { Alert.alert('Error', 'Add content to at least one section'); return; }
 
     setIsSaving(true);
     try {
@@ -402,34 +372,33 @@ export default function TranscriptionScreen({
       } else {
         result = await apiService.createSoapNote(soapNoteData);
       }
-      console.log('✅ Save successful:', result);
 
-      Alert.alert(
-        'Success',
-        'SOAP note saved successfully!',
-        [
-          {
-            text: 'New Note',
-            onPress: () => {
-              setSymptoms(''); setPhysicalExamination(''); setLabInvestigations('');
-              setImaging(''); setDiagnosis(''); setSelectedIcd10Code(null);
-              setManagement(''); setCurrentDraftId(null);
-              setSelectedPatient(null);
-              if (onClearPatient) onClearPatient();
-            },
+      // Upload any pending docs (new note path)
+      if (result?.id && pendingDocs.length > 0) {
+        await uploadPendingDocs(selectedPatient.id, result.id);
+      }
+
+      Alert.alert('Success', 'SOAP note saved successfully!', [
+        {
+          text: 'New Note',
+          onPress: () => {
+            setSymptoms(''); setPhysicalExamination(''); setLabInvestigations('');
+            setImaging(''); setDiagnosis(''); setSelectedIcd10Code(null);
+            setManagement(''); setCurrentDraftId(null); setPendingDocs([]);
+            setSelectedPatient(null);
+            if (onClearPatient) onClearPatient();
           },
-          { text: 'OK' },
-        ]
-      );
+        },
+        { text: 'OK' },
+      ]);
     } catch (error) {
-      console.error('❌ Save error:', error);
       Alert.alert('Error', `Failed to save: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ── Resume Draft ───────────────────────────────────────────────────────────
+  // Resume Draft
   const handleResumeDraft = (draft) => {
     setSelectedPatient(draft.patient);
     setSymptoms(draft.symptoms ?? '');
@@ -440,35 +409,30 @@ export default function TranscriptionScreen({
     setManagement(draft.management ?? '');
     if (draft.icd10Code) setSelectedIcd10Code({ code: draft.icd10Code, short_description: draft.icd10Description });
     setCurrentDraftId(draft.id);
+    setPendingDocs([]);
     setActiveTab('new');
   };
 
-  // ── Delete Draft ───────────────────────────────────────────────────────────
+  // Delete Draft
   const handleDeleteDraft = (draft) => {
-    Alert.alert(
-      'Delete Draft',
-      `Delete draft for ${draft.patient?.firstName} ${draft.patient?.lastName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const apiService = require('../services/apiService').default;
-              await apiService.deleteDraft(draft.id);
-              setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
-              if (currentDraftId === draft.id) { setCurrentDraftId(null); clearForm(); }
-            } catch (e) {
-              Alert.alert('Error', e.message);
-            }
-          },
+    Alert.alert('Delete Draft', `Delete draft for ${draft.patient?.firstName} ${draft.patient?.lastName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const apiService = require('../services/apiService').default;
+            await apiService.deleteDraft(draft.id);
+            setDrafts(prev => prev.filter(d => d.id !== draft.id));
+            if (currentDraftId === draft.id) { setCurrentDraftId(null); clearForm(); }
+          } catch (e) { Alert.alert('Error', e.message); }
         },
-      ],
-    );
+      },
+    ]);
   };
 
-  // ── Sections list ──────────────────────────────────────────────────────────
+  // Sections list
   const sections = [
     {
       id: 'patient-search',
@@ -476,7 +440,6 @@ export default function TranscriptionScreen({
       component: (
         <>
           <PatientSearchBar selectedPatient={selectedPatient} onPatientSelect={handlePatientSelect} />
-
           {selectedPatient && (
             <View style={styles.patientHistoryBanner}>
               <View style={styles.bannerIconContainer}>
@@ -495,7 +458,6 @@ export default function TranscriptionScreen({
               </TouchableOpacity>
             </View>
           )}
-
           {currentDraftId && (
             <View style={styles.draftResumeBanner}>
               <MaterialCommunityIcons name="pencil-box-outline" size={18} color="#b45309" />
@@ -523,142 +485,167 @@ export default function TranscriptionScreen({
     },
     {
       id: 'symptoms', type: 'soap-section',
-      component: (
-        <SoapSectionInput title="1. Symptoms & History" value={symptoms} onChangeText={setSymptoms}
-          onFormat={() => handleFormatSection('Symptoms', symptoms, setSymptoms)}
-          onClear={() => handleClearSection('Symptoms', setSymptoms)}
-          onStartRecording={() => handleStartRecording('symptoms')}
-          isRecording={isRecording && activeRecordingSection === 'symptoms'}
-          isFormatting={formatingSections.symptoms}
-          placeholder="What does the patient report? Symptoms, concerns, history..."
-          isCollapsed={collapsedSections.symptoms} onToggleCollapse={() => toggleSection('symptoms')} />
-      ),
+      component: <SoapSectionInput title="1. Symptoms & History" value={symptoms} onChangeText={setSymptoms}
+        onFormat={() => handleFormatSection('Symptoms', symptoms, setSymptoms)}
+        onClear={() => handleClearSection('Symptoms', setSymptoms)}
+        onStartRecording={() => handleStartRecording('symptoms')}
+        isRecording={isRecording && activeRecordingSection === 'symptoms'}
+        isFormatting={formatingSections.symptoms}
+        placeholder="What does the patient report? Symptoms, concerns, history..."
+        isCollapsed={collapsedSections.symptoms} onToggleCollapse={() => toggleSection('symptoms')} />,
     },
     {
       id: 'physicalExamination', type: 'soap-section',
-      component: (
-        <SoapSectionInput title="2. Physical Examination" value={physicalExamination} onChangeText={setPhysicalExamination}
-          onFormat={() => handleFormatSection('Physical Examination', physicalExamination, setPhysicalExamination)}
-          onClear={() => handleClearSection('Physical Examination', setPhysicalExamination)}
-          onStartRecording={() => handleStartRecording('physicalExamination')}
-          isRecording={isRecording && activeRecordingSection === 'physicalExamination'}
-          isFormatting={formatingSections.physicalExamination}
-          placeholder="Measurable findings, vitals, exam results, observations..."
-          isCollapsed={collapsedSections.physicalExamination} onToggleCollapse={() => toggleSection('physicalExamination')} />
-      ),
+      component: <SoapSectionInput title="2. Physical Examination" value={physicalExamination} onChangeText={setPhysicalExamination}
+        onFormat={() => handleFormatSection('Physical Examination', physicalExamination, setPhysicalExamination)}
+        onClear={() => handleClearSection('Physical Examination', setPhysicalExamination)}
+        onStartRecording={() => handleStartRecording('physicalExamination')}
+        isRecording={isRecording && activeRecordingSection === 'physicalExamination'}
+        isFormatting={formatingSections.physicalExamination}
+        placeholder="Measurable findings, vitals, exam results, observations..."
+        isCollapsed={collapsedSections.physicalExamination} onToggleCollapse={() => toggleSection('physicalExamination')} />,
     },
     {
       id: 'labInvestigations', type: 'soap-section',
-      component: (
-        <SoapSectionInput title="3. Lab Investigations 🧪" value={labInvestigations} onChangeText={setLabInvestigations}
-          onFormat={() => handleFormatSection('Lab Investigations', labInvestigations, setLabInvestigations)}
-          onClear={() => handleClearSection('Lab Investigations', setLabInvestigations)}
-          onStartRecording={() => handleStartRecording('labInvestigations')}
-          isRecording={isRecording && activeRecordingSection === 'labInvestigations'}
-          isFormatting={formatingSections.labInvestigations}
-          placeholder="Lab tests ordered, results, values, interpretations (CBC, chemistry panel, urinalysis, etc.)"
-          isCollapsed={collapsedSections.labInvestigations} onToggleCollapse={() => toggleSection('labInvestigations')} />
-      ),
+      component: <SoapSectionInput title="3. Lab Investigations 🧪" value={labInvestigations} onChangeText={setLabInvestigations}
+        onFormat={() => handleFormatSection('Lab Investigations', labInvestigations, setLabInvestigations)}
+        onClear={() => handleClearSection('Lab Investigations', setLabInvestigations)}
+        onStartRecording={() => handleStartRecording('labInvestigations')}
+        isRecording={isRecording && activeRecordingSection === 'labInvestigations'}
+        isFormatting={formatingSections.labInvestigations}
+        placeholder="Lab tests ordered, results, values, interpretations (CBC, chemistry panel, urinalysis, etc.)"
+        isCollapsed={collapsedSections.labInvestigations} onToggleCollapse={() => toggleSection('labInvestigations')} />,
     },
     {
       id: 'imaging', type: 'soap-section',
-      component: (
-        <SoapSectionInput title="4. Imaging 📸" value={imaging} onChangeText={setImaging}
-          onFormat={() => handleFormatSection('Imaging', imaging, setImaging)}
-          onClear={() => handleClearSection('Imaging', setImaging)}
-          onStartRecording={() => handleStartRecording('imaging')}
-          isRecording={isRecording && activeRecordingSection === 'imaging'}
-          isFormatting={formatingSections.imaging}
-          placeholder="Imaging studies ordered, findings, impressions (X-ray, CT, MRI, ultrasound...)"
-          isCollapsed={collapsedSections.imaging} onToggleCollapse={() => toggleSection('imaging')} />
-      ),
+      component: <SoapSectionInput title="4. Imaging 📸" value={imaging} onChangeText={setImaging}
+        onFormat={() => handleFormatSection('Imaging', imaging, setImaging)}
+        onClear={() => handleClearSection('Imaging', setImaging)}
+        onStartRecording={() => handleStartRecording('imaging')}
+        isRecording={isRecording && activeRecordingSection === 'imaging'}
+        isFormatting={formatingSections.imaging}
+        placeholder="Imaging studies ordered, findings, impressions (X-ray, CT, MRI, ultrasound...)"
+        isCollapsed={collapsedSections.imaging} onToggleCollapse={() => toggleSection('imaging')} />,
     },
     {
       id: 'diagnosis', type: 'soap-section',
-      component: (
-        <SoapSectionInput title="5. Diagnosis" value={diagnosis} onChangeText={setDiagnosis}
-          onFormat={() => handleFormatSection('Diagnosis', diagnosis, setDiagnosis)}
-          onClear={() => handleClearSection('Diagnosis', setDiagnosis)}
-          onStartRecording={() => handleStartRecording('diagnosis')}
-          isRecording={isRecording && activeRecordingSection === 'diagnosis'}
-          isFormatting={formatingSections.diagnosis}
-          placeholder="Clinical diagnosis, assessment, differential diagnosis..."
-          isCollapsed={collapsedSections.diagnosis} onToggleCollapse={() => toggleSection('diagnosis')}
-          showIcd10Search={true} selectedIcd10Code={selectedIcd10Code} onIcd10Select={handleIcd10Select} />
-      ),
+      component: <SoapSectionInput title="5. Diagnosis" value={diagnosis} onChangeText={setDiagnosis}
+        onFormat={() => handleFormatSection('Diagnosis', diagnosis, setDiagnosis)}
+        onClear={() => handleClearSection('Diagnosis', setDiagnosis)}
+        onStartRecording={() => handleStartRecording('diagnosis')}
+        isRecording={isRecording && activeRecordingSection === 'diagnosis'}
+        isFormatting={formatingSections.diagnosis}
+        placeholder="Clinical diagnosis, assessment, differential diagnosis..."
+        isCollapsed={collapsedSections.diagnosis} onToggleCollapse={() => toggleSection('diagnosis')}
+        showIcd10Search={true} selectedIcd10Code={selectedIcd10Code} onIcd10Select={handleIcd10Select} />,
     },
     {
       id: 'management', type: 'soap-section',
-      component: (
-        <SoapSectionInput title="6. Management" value={management} onChangeText={setManagement}
-          onFormat={() => handleFormatSection('Management', management, setManagement)}
-          onClear={() => handleClearSection('Management', setManagement)}
-          onStartRecording={() => handleStartRecording('management')}
-          isRecording={isRecording && activeRecordingSection === 'management'}
-          isFormatting={formatingSections.management}
-          placeholder="Treatment plan, medications, follow-up, patient education..."
-          isCollapsed={collapsedSections.management} onToggleCollapse={() => toggleSection('management')} />
-      ),
+      component: <SoapSectionInput title="6. Management" value={management} onChangeText={setManagement}
+        onFormat={() => handleFormatSection('Management', management, setManagement)}
+        onClear={() => handleClearSection('Management', setManagement)}
+        onStartRecording={() => handleStartRecording('management')}
+        isRecording={isRecording && activeRecordingSection === 'management'}
+        isFormatting={formatingSections.management}
+        placeholder="Treatment plan, medications, follow-up, patient education..."
+        isCollapsed={collapsedSections.management} onToggleCollapse={() => toggleSection('management')} />,
     },
+    // ── Attachments ── always visible, whether draft or brand new note
     {
       id: 'attachments',
       type: 'attachments',
       component: (
-        currentDraftId ? (
-          <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
-            <View style={{
-              backgroundColor: '#ffffff',
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: '#e5e7eb',
-              padding: 16,
-              elevation: 2,
-            }}>
+        <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
+          <View style={{
+            backgroundColor: '#ffffff',
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: '#e5e7eb',
+            padding: 16,
+            elevation: 2,
+          }}>
+            {currentDraftId ? (
+              // Saved draft — full panel with existing + new uploads
               <NoteDocumentsPanel
                 soapNoteId={currentDraftId}
                 patientId={selectedPatient?.id}
                 editable={true}
               />
-            </View>
+            ) : (
+              // Brand new note — stage files locally, upload on save
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <MaterialCommunityIcons name="paperclip" size={15} color="#0f766e" />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#374151' }}>Attachments</Text>
+                  {pendingDocs.length > 0 && (
+                    <View style={{ backgroundColor: '#ccfbf1', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#0f766e' }}>
+                        {pendingDocs.length} pending
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Staged (pending) file list */}
+                {pendingDocs.map((doc) => {
+                  const cat = getCategoryInfo(doc.category);
+                  return (
+                    <View key={doc.localId} style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      backgroundColor: '#f0fdf4', borderRadius: 10, padding: 10,
+                      borderWidth: 1, borderColor: '#bbf7d0', marginBottom: 8,
+                    }}>
+                      <View style={{
+                        width: 34, height: 34, borderRadius: 8,
+                        backgroundColor: cat.color + '20',
+                        alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <Ionicons name={cat.icon} size={16} color={cat.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b' }} numberOfLines={1}>
+                          {doc.documentName}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#64748b' }}>{cat.label}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => removePendingDoc(doc.localId)}>
+                        <Ionicons name="close-circle" size={20} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+
+                <DocumentUploadWidget
+                  onFileReady={(fileObj) => {
+                    setPendingDocs(prev => [...prev, { ...fileObj, localId: Date.now().toString() }]);
+                  }}
+                  compact={pendingDocs.length > 0}
+                />
+
+                {pendingDocs.length > 0 && (
+                  <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 8, marginLeft: 4 }}>
+                    {pendingDocs.length} file{pendingDocs.length > 1 ? 's' : ''} will be attached when you save the note.
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
-        ) : (
-          <View style={{
-            marginHorizontal: 16,
-            marginVertical: 8,
-            padding: 14,
-            backgroundColor: '#f8fafc',
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: '#e2e8f0',
-            borderStyle: 'dashed',
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <MaterialCommunityIcons name="paperclip" size={16} color="#94a3b8" />
-              <Text style={{ fontSize: 13, color: '#94a3b8' }}>
-                Save a draft first to attach documents
-              </Text>
-            </View>
-          </View>
-        )
+        </View>
       ),
     },
     {
       id: 'format-all-button', type: 'format-all-button',
       component: (
         <TouchableOpacity
-          style={[
-            styles.formatAllButton,
+          style={[styles.formatAllButton,
             (isFormattingAll || isRecording ||
               (!symptoms.trim() && !physicalExamination.trim() && !labInvestigations.trim() &&
-               !imaging.trim() && !diagnosis.trim() && !management.trim()))
-            && styles.formatAllButtonDisabled,
+               !imaging.trim() && !diagnosis.trim() && !management.trim())) && styles.formatAllButtonDisabled,
           ]}
           onPress={handleFormatAll}
-          disabled={
-            isFormattingAll || isRecording ||
+          disabled={isFormattingAll || isRecording ||
             (!symptoms.trim() && !physicalExamination.trim() && !labInvestigations.trim() &&
-             !imaging.trim() && !diagnosis.trim() && !management.trim())
-          }
+             !imaging.trim() && !diagnosis.trim() && !management.trim())}
         >
           {isFormattingAll ? (
             <><ActivityIndicator color="#ffffff" size="small" /><Text style={styles.formatAllButtonText}>  Formatting...</Text></>
@@ -700,16 +687,13 @@ export default function TranscriptionScreen({
     },
   ];
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      {/* Teal header */}
       <View style={styles.header}>
         <Text style={styles.appName}>Afyascribe</Text>
         <Text style={styles.tagline}>Fast, Accurate Medical Notes</Text>
       </View>
 
-      {/* Tab switcher */}
       <View style={styles.tabSwitcher}>
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'new' && styles.tabBtnActive]}
@@ -729,7 +713,6 @@ export default function TranscriptionScreen({
         </TouchableOpacity>
       </View>
 
-      {/* New Note tab */}
       {activeTab === 'new' && (
         <FlatList
           data={sections}
@@ -741,7 +724,6 @@ export default function TranscriptionScreen({
         />
       )}
 
-      {/* Drafts tab */}
       {activeTab === 'drafts' && (
         <FlatList
           data={drafts}
@@ -757,25 +739,21 @@ export default function TranscriptionScreen({
               tintColor="#0f766e"
             />
           }
-          ListHeaderComponent={
-            draftsLoading ? (
-              <View style={styles.draftsLoading}>
-                <ActivityIndicator color="#0f766e" />
-                <Text style={styles.draftsLoadingText}>Loading drafts...</Text>
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            !draftsLoading ? (
-              <View style={styles.draftsEmpty}>
-                <MaterialCommunityIcons name="pencil-box-outline" size={52} color="#cbd5e1" />
-                <Text style={styles.draftsEmptyTitle}>No drafts yet</Text>
-                <Text style={styles.draftsEmptySubtitle}>
-                  Tap "Save Draft" while writing a note to pause and resume it later.
-                </Text>
-              </View>
-            ) : null
-          }
+          ListHeaderComponent={draftsLoading ? (
+            <View style={styles.draftsLoading}>
+              <ActivityIndicator color="#0f766e" />
+              <Text style={styles.draftsLoadingText}>Loading drafts...</Text>
+            </View>
+          ) : null}
+          ListEmptyComponent={!draftsLoading ? (
+            <View style={styles.draftsEmpty}>
+              <MaterialCommunityIcons name="pencil-box-outline" size={52} color="#cbd5e1" />
+              <Text style={styles.draftsEmptyTitle}>No drafts yet</Text>
+              <Text style={styles.draftsEmptySubtitle}>
+                Tap "Save Draft" while writing a note to pause and resume it later.
+              </Text>
+            </View>
+          ) : null}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -783,101 +761,44 @@ export default function TranscriptionScreen({
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f3f4f6' },
-
-  header: {
-    backgroundColor: '#0f766e',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
+  header: { backgroundColor: '#0f766e', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20 },
   appName: { fontSize: 28, fontWeight: 'bold', color: '#ffffff', marginBottom: 4 },
   tagline: { fontSize: 14, color: '#d1fae5' },
-
-  tabSwitcher: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    paddingHorizontal: 16,
-  },
-  tabBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 12, paddingHorizontal: 16,
-    borderBottomWidth: 2, borderBottomColor: 'transparent', marginRight: 4,
-  },
+  tabSwitcher: { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingHorizontal: 16 },
+  tabBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 2, borderBottomColor: 'transparent', marginRight: 4 },
   tabBtnActive: { borderBottomColor: '#0f766e' },
   tabBtnText: { fontSize: 14, fontWeight: '500', color: '#94a3b8' },
   tabBtnTextActive: { color: '#0f766e', fontWeight: '700' },
-
   listContent: { paddingBottom: 20 },
   draftsListContent: { padding: 16, paddingBottom: 40 },
-
   patientHistoryBanner: {
     backgroundColor: '#ffffff', marginHorizontal: 16, marginTop: 12, marginBottom: 8,
     padding: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08,
     shadowRadius: 8, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#3b82f6',
   },
-  bannerIconContainer: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: '#eff6ff',
-    alignItems: 'center', justifyContent: 'center', marginRight: 12,
-  },
+  bannerIconContainer: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   patientHistoryInfo: { flex: 1 },
   patientHistoryLabel: { fontSize: 15, fontWeight: '600', color: '#1f2937', marginBottom: 2 },
   patientHistoryHint: { fontSize: 13, color: '#6b7280', lineHeight: 18 },
-  viewHistoryButton: {
-    backgroundColor: '#3b82f6', paddingVertical: 8, paddingHorizontal: 16,
-    borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4,
-  },
+  viewHistoryButton: { backgroundColor: '#3b82f6', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   viewHistoryButtonText: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
-
-  draftResumeBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fffbeb',
-    marginHorizontal: 16, marginBottom: 8, borderRadius: 8, padding: 10,
-    borderWidth: 1, borderColor: '#fde68a',
-  },
+  draftResumeBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fffbeb', marginHorizontal: 16, marginBottom: 8, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#fde68a' },
   draftResumeBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#b45309' },
   draftResumeDiscard: { fontSize: 13, color: '#dc2626', fontWeight: '600' },
-
-  recordingBanner: {
-    backgroundColor: '#ef4444', flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', paddingVertical: 12, gap: 8,
-  },
+  recordingBanner: { backgroundColor: '#ef4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 8 },
   recordingBannerText: { color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 },
-
-  formatAllButton: {
-    backgroundColor: '#8b5cf6', marginHorizontal: 16, marginTop: 16, marginBottom: 8,
-    paddingVertical: 14, borderRadius: 12, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 4, elevation: 3, gap: 8,
-  },
+  formatAllButton: { backgroundColor: '#8b5cf6', marginHorizontal: 16, marginTop: 16, marginBottom: 8, paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3, gap: 8 },
   formatAllButtonDisabled: { backgroundColor: '#9ca3af' },
   formatAllButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
-
-  actionButtonsRow: {
-    flexDirection: 'row', gap: 12,
-    marginHorizontal: 16, marginVertical: 24,
-  },
-  saveDraftButton: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: '#f0fdf4', borderRadius: 12, height: 52,
-    borderWidth: 2, borderColor: '#0f766e',
-  },
+  actionButtonsRow: { flexDirection: 'row', gap: 12, marginHorizontal: 16, marginVertical: 24 },
+  saveDraftButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#f0fdf4', borderRadius: 12, height: 52, borderWidth: 2, borderColor: '#0f766e' },
   saveDraftButtonText: { color: '#0f766e', fontWeight: '700', fontSize: 15 },
-  saveButton: {
-    flex: 2, backgroundColor: '#0f766e', borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', height: 52,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
-    flexDirection: 'row',
-  },
+  saveButton: { flex: 2, backgroundColor: '#0f766e', borderRadius: 12, alignItems: 'center', justifyContent: 'center', height: 52, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, flexDirection: 'row' },
   saveButtonDisabled: { backgroundColor: '#9ca3af' },
   saveButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
-
   draftsLoading: { alignItems: 'center', paddingTop: 40, gap: 12 },
   draftsLoadingText: { color: '#64748b', fontSize: 14 },
   draftsEmpty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32, gap: 12 },
@@ -885,19 +806,10 @@ const styles = StyleSheet.create({
   draftsEmptySubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', lineHeight: 20 },
 });
 
-// ─── Draft card styles ────────────────────────────────────────────────────────
 const draftStyles = StyleSheet.create({
-  card: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12,
-    borderWidth: 1, borderColor: '#fde68a',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
-  },
+  card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#fde68a', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 },
   cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  avatar: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: '#fef3c7',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fef3c7', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontWeight: '700', color: '#b45309' },
   patientName: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
   patientId: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
@@ -905,16 +817,8 @@ const draftStyles = StyleSheet.create({
   preview: { fontSize: 13, color: '#475569', lineHeight: 18, marginBottom: 12 },
   emptyPreview: { fontSize: 13, color: '#cbd5e1', fontStyle: 'italic', marginBottom: 12 },
   actions: { flexDirection: 'row', gap: 10 },
-  resumeBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1,
-    backgroundColor: '#f0fdf4', borderRadius: 8, paddingVertical: 8,
-    justifyContent: 'center', borderWidth: 1, borderColor: '#bbf7d0',
-  },
+  resumeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, backgroundColor: '#f0fdf4', borderRadius: 8, paddingVertical: 8, justifyContent: 'center', borderWidth: 1, borderColor: '#bbf7d0' },
   resumeBtnText: { fontSize: 13, fontWeight: '600', color: '#0f766e' },
-  deleteBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#fff1f2', borderRadius: 8, paddingHorizontal: 14,
-    paddingVertical: 8, borderWidth: 1, borderColor: '#fecdd3',
-  },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff1f2', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#fecdd3' },
   deleteBtnText: { fontSize: 13, fontWeight: '600', color: '#dc2626' },
 });

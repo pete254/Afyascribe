@@ -679,6 +679,112 @@ getInsuranceClaimsExportUrl(from, to, scheme) {
       method: 'DELETE',
     });
   }
+
+  // ==================== SERVICE CATALOG ENDPOINTS ====================
+  
+  /**
+   * Get all active services in the facility's catalog.
+   * Pass showAll=true to include inactive items (admin only).
+   */
+  async getServiceCatalog(showAll = false) {
+    const q = showAll ? '?all=true' : '';
+    return await this.request(`/service-catalog${q}`);
+  }
+  
+  /**
+   * Seed the catalog with common hospital services.
+   * Safe to call multiple times — won't create duplicates.
+   * Role: facility_admin
+   */
+  async seedDefaultServices() {
+    return await this.request('/service-catalog/seed-defaults', {
+      method: 'POST',
+    });
+  }
+  
+  /**
+   * Add a new service to the catalog.
+   * Role: facility_admin
+   * data: { name, description?, defaultPrice, category, sortOrder? }
+   */
+  async createServiceCatalogItem(data) {
+    return await this.request('/service-catalog', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+  
+  /**
+   * Update a catalog service (name, price, active status, etc.)
+   * Role: facility_admin
+   */
+  async updateServiceCatalogItem(id, data) {
+    return await this.request(`/service-catalog/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+  
+  /**
+   * Remove a service from the catalog.
+   * Role: facility_admin
+   */
+  async deleteServiceCatalogItem(id) {
+    return await this.request(`/service-catalog/${id}`, {
+      method: 'DELETE',
+    });
+  }
+  
+  // ==================== BILLING UPDATES ====================
+  
+  /**
+   * Create a bill — UPDATED signature supports catalogItemId
+   * paymentMode defaults to 'cash' (receptionist adjusts at checkout)
+   */
+  async createBill(
+    visitId,
+    serviceType,
+    serviceDescription,
+    amount,
+    paymentMode = 'cash',
+    insuranceSchemeName = null,
+    catalogItemId = null,
+  ) {
+    return await this.request('/billing', {
+      method: 'POST',
+      body: JSON.stringify({
+        visitId,
+        serviceType,
+        serviceDescription,
+        amount,
+        paymentMode,
+        insuranceSchemeName,
+        ...(catalogItemId ? { catalogItemId } : {}),
+      }),
+    });
+  }
+  
+  /**
+   * Update an unpaid bill (amount and/or description).
+   * Only unpaid bills can be edited.
+   */
+  async updateBill(billId, data) {
+    // data: { amount?, serviceDescription? }
+    return await this.request(`/billing/${billId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+  
+  /**
+   * Delete an unpaid bill from a visit.
+   * Only unpaid bills can be deleted.
+   */
+  async deleteBill(billId) {
+    return await this.request(`/billing/${billId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export default new ApiService();

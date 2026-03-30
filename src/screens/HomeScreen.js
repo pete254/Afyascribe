@@ -22,6 +22,7 @@ export default function HomeScreen({
   onViewMyQueue,
   onViewTriageQueue,
   onViewReports,
+  onViewServiceCatalog,
 }) {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
@@ -269,6 +270,20 @@ export default function HomeScreen({
               </View>
               <Text style={styles.cardTitle}>Onboard Patient</Text>
               <Text style={styles.cardSubtitle}>Register a new patient into the system</Text>
+            </TouchableOpacity>
+
+              <TouchableOpacity
+              style={[styles.actionCard, styles.cardTeal]}
+              onPress={onViewServiceCatalog}
+               activeOpacity={0.85}>
+            <View style={[styles.iconCircle, styles.iconCircleTeal]}>
+            <MaterialCommunityIcons name="clipboard-list-outline" size={30} color="#0f766e" />
+            </View>
+            <View style={[styles.arrowBadge]}>
+            <Ionicons name="arrow-forward" size={14} color="#0f766e" />
+            </View>
+            <Text style={styles.cardTitle}>Service Catalog</Text>
+            <Text style={styles.cardSubtitle}>Manage services and pricing for billing</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.actionCard, styles.cardGray]} onPress={onViewPatientDirectory} activeOpacity={0.85}>

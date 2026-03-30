@@ -17,12 +17,12 @@ function getSectionPrompt(sectionName, rawText) {
   
   // NEW: Lab Investigations
   if (nameLower.includes('lab') || nameLower.includes('investigation')) {
-    return `Rewrite lab results concisely in plain text (no headers, no asterisks). Include test names, values, and units:\n${rawText}`;
+    return `Rewrite lab results concisely in plain text (no headers, no asterisks):\n${rawText}`;
   }
   
   // NEW: Imaging
   if (nameLower.includes('imaging') || nameLower.includes('radiology')) {
-    return `Rewrite imaging findings concisely in plain text (no headers, no asterisks). Include modality, findings, and impressions:\n${rawText}`;
+    return `Rewrite imaging findings concisely in plain text (no headers, no asterisks):\n${rawText}`;
   }
   
   if (nameLower.includes('diagnosis')) {
