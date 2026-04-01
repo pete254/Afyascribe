@@ -1,9 +1,6 @@
 // src/screens/TranscriptionScreen.js
-// Changes vs previous version:
-//   - Import DocumentUploadWidget + getCategoryInfo
-//   - Added pendingDocs state for new-note attachments
-//   - Attachments section always shows upload widget (no "save draft first" gate)
-//   - After finalise/save, pending docs are uploaded automatically
+// UPDATED: Added "Billing" tab — doctors can bill patients from their service catalog.
+// Bills must be paid at reception before the note can be finalised (enforced by banner).
 import React, { useState, useEffect, useCallback } from 'react';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import {
@@ -21,6 +18,7 @@ import SoapSectionInput from '../components/SoapSectionInput';
 import PatientSearchBar from '../components/PatientSearchBar';
 import NoteDocumentsPanel from '../components/NoteDocumentsPanel';
 import DocumentUploadWidget, { getCategoryInfo } from '../components/DocumentUploadWidget';
+import TranscriptionBillingTab from '../components/TranscriptionBillingTab';
 
 // ─── Draft list card ───────────────────────────────────────────────────────────
 function DraftCard({ draft, onResume, onDelete }) {
@@ -82,10 +80,12 @@ function DraftCard({ draft, onResume, onDelete }) {
 export default function TranscriptionScreen({
   preselectedPatient,
   noteToEdit,
+  visitContext,     // PatientVisit passed from MyQueueScreen
   onViewPatientHistory,
   onClearPatient,
   onClearNote,
 }) {
+  // 'new' | 'billing' | 'drafts'
   const [activeTab, setActiveTab] = useState('new');
 
   // Form state
@@ -116,8 +116,11 @@ export default function TranscriptionScreen({
   const [draftsLoading, setDraftsLoading] = useState(false);
   const [draftsRefreshing, setDraftsRefreshing] = useState(false);
 
-  // ── Pending docs for brand-new notes (uploaded after save) ─────────────────
+  // Pending docs for brand-new notes
   const [pendingDocs, setPendingDocs] = useState([]);
+
+  // Billing unpaid flag (from billing tab callback)
+  const [hasUnpaidBills, setHasUnpaidBills] = useState(false);
 
   const removePendingDoc = (localId) => {
     setPendingDocs(prev => prev.filter(d => d.localId !== localId));
@@ -217,6 +220,7 @@ export default function TranscriptionScreen({
     setImaging(''); setDiagnosis(''); setManagement('');
     setSelectedIcd10Code(null); setCurrentDraftId(null);
     setSelectedPatient(null); setPendingDocs([]);
+    setHasUnpaidBills(false);
     onClearPatient?.();
     onClearNote?.();
   };
@@ -231,7 +235,6 @@ export default function TranscriptionScreen({
   };
 
   const handleIcd10Select = (code) => setSelectedIcd10Code(code);
-
   const toggleSection = (sectionName) => {
     setCollapsedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
   };
@@ -298,7 +301,7 @@ export default function TranscriptionScreen({
     }
   };
 
-  // ── Helper: upload pending docs after a note is saved ─────────────────────
+  // Upload pending docs after a note is saved
   const uploadPendingDocs = async (patientId, soapNoteId) => {
     if (pendingDocs.length === 0) return;
     const apiService = require('../services/apiService').default;
@@ -331,7 +334,6 @@ export default function TranscriptionScreen({
       } else {
         saved = await apiService.createDraft(selectedPatient.id, fields);
         setCurrentDraftId(saved.id);
-        // Upload any pending docs now that we have a draftId
         if (pendingDocs.length > 0) {
           await uploadPendingDocs(selectedPatient.id, saved.id);
         }
@@ -350,6 +352,19 @@ export default function TranscriptionScreen({
     const hasContent = symptoms.trim() || physicalExamination.trim() || labInvestigations.trim() ||
       imaging.trim() || diagnosis.trim() || management.trim();
     if (!hasContent) { Alert.alert('Error', 'Add content to at least one section'); return; }
+
+    // Warn if unpaid bills — note will be saved as draft anyway
+    if (hasUnpaidBills) {
+      Alert.alert(
+        'Unpaid Bills',
+        'This patient has unpaid bills. The note will be saved as a draft. Ask the receptionist to collect payment, then return here to finalise.',
+        [
+          { text: 'Save as Draft', onPress: handleSaveDraft },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -373,7 +388,6 @@ export default function TranscriptionScreen({
         result = await apiService.createSoapNote(soapNoteData);
       }
 
-      // Upload any pending docs (new note path)
       if (result?.id && pendingDocs.length > 0) {
         await uploadPendingDocs(selectedPatient.id, result.id);
       }
@@ -385,7 +399,7 @@ export default function TranscriptionScreen({
             setSymptoms(''); setPhysicalExamination(''); setLabInvestigations('');
             setImaging(''); setDiagnosis(''); setSelectedIcd10Code(null);
             setManagement(''); setCurrentDraftId(null); setPendingDocs([]);
-            setSelectedPatient(null);
+            setSelectedPatient(null); setHasUnpaidBills(false);
             if (onClearPatient) onClearPatient();
           },
         },
@@ -432,7 +446,7 @@ export default function TranscriptionScreen({
     ]);
   };
 
-  // Sections list
+  // Sections list for the New Note tab
   const sections = [
     {
       id: 'patient-search',
@@ -466,6 +480,20 @@ export default function TranscriptionScreen({
                 <Text style={styles.draftResumeDiscard}>Discard</Text>
               </TouchableOpacity>
             </View>
+          )}
+          {/* Unpaid bills warning on new-note tab */}
+          {hasUnpaidBills && (
+            <TouchableOpacity
+              style={styles.unpaidWarningBanner}
+              onPress={() => setActiveTab('billing')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="cash-clock" size={18} color="#b45309" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.unpaidWarningTitle}>Unpaid Bills — Note saved as draft</Text>
+                <Text style={styles.unpaidWarningBody}>Tap to view billing details →</Text>
+              </View>
+            </TouchableOpacity>
           )}
         </>
       ),
@@ -513,7 +541,7 @@ export default function TranscriptionScreen({
         onStartRecording={() => handleStartRecording('labInvestigations')}
         isRecording={isRecording && activeRecordingSection === 'labInvestigations'}
         isFormatting={formatingSections.labInvestigations}
-        placeholder="Lab tests ordered, results, values, interpretations (CBC, chemistry panel, urinalysis, etc.)"
+        placeholder="Lab tests ordered, results, values, interpretations..."
         isCollapsed={collapsedSections.labInvestigations} onToggleCollapse={() => toggleSection('labInvestigations')} />,
     },
     {
@@ -524,7 +552,7 @@ export default function TranscriptionScreen({
         onStartRecording={() => handleStartRecording('imaging')}
         isRecording={isRecording && activeRecordingSection === 'imaging'}
         isFormatting={formatingSections.imaging}
-        placeholder="Imaging studies ordered, findings, impressions (X-ray, CT, MRI, ultrasound...)"
+        placeholder="Imaging studies ordered, findings, impressions..."
         isCollapsed={collapsedSections.imaging} onToggleCollapse={() => toggleSection('imaging')} />,
     },
     {
@@ -550,29 +578,22 @@ export default function TranscriptionScreen({
         placeholder="Treatment plan, medications, follow-up, patient education..."
         isCollapsed={collapsedSections.management} onToggleCollapse={() => toggleSection('management')} />,
     },
-    // ── Attachments ── always visible, whether draft or brand new note
     {
       id: 'attachments',
       type: 'attachments',
       component: (
         <View style={{ marginHorizontal: 16, marginVertical: 8 }}>
           <View style={{
-            backgroundColor: '#ffffff',
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: '#e5e7eb',
-            padding: 16,
-            elevation: 2,
+            backgroundColor: '#ffffff', borderRadius: 12,
+            borderWidth: 1, borderColor: '#e5e7eb', padding: 16, elevation: 2,
           }}>
             {currentDraftId ? (
-              // Saved draft — full panel with existing + new uploads
               <NoteDocumentsPanel
                 soapNoteId={currentDraftId}
                 patientId={selectedPatient?.id}
                 editable={true}
               />
             ) : (
-              // Brand new note — stage files locally, upload on save
               <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                   <MaterialCommunityIcons name="paperclip" size={15} color="#0f766e" />
@@ -586,7 +607,6 @@ export default function TranscriptionScreen({
                   )}
                 </View>
 
-                {/* Staged (pending) file list */}
                 {pendingDocs.map((doc) => {
                   const cat = getCategoryInfo(doc.category);
                   return (
@@ -621,12 +641,6 @@ export default function TranscriptionScreen({
                   }}
                   compact={pendingDocs.length > 0}
                 />
-
-                {pendingDocs.length > 0 && (
-                  <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 8, marginLeft: 4 }}>
-                    {pendingDocs.length} file{pendingDocs.length > 1 ? 's' : ''} will be attached when you save the note.
-                  </Text>
-                )}
               </View>
             )}
           </View>
@@ -679,13 +693,19 @@ export default function TranscriptionScreen({
             {isSaving ? (
               <><ActivityIndicator color="#ffffff" size="small" /><Text style={styles.saveButtonText}>  Saving...</Text></>
             ) : (
-              <><Ionicons name="save-outline" size={20} color="#ffffff" /><Text style={styles.saveButtonText}>{currentDraftId ? '  Finalise Note' : '  Save SOAP Note'}</Text></>
+              <><Ionicons name="save-outline" size={20} color="#ffffff" />
+                <Text style={styles.saveButtonText}>
+                  {hasUnpaidBills ? '  Save as Draft' : currentDraftId ? '  Finalise Note' : '  Save SOAP Note'}
+                </Text></>
             )}
           </TouchableOpacity>
         </View>
       ),
     },
   ];
+
+  // ── Effective visitContext: from prop or from noteToEdit's patient ────────────
+  const effectiveVisit = visitContext || null;
 
   return (
     <View style={styles.container}>
@@ -694,6 +714,7 @@ export default function TranscriptionScreen({
         <Text style={styles.tagline}>Fast, Accurate Medical Notes</Text>
       </View>
 
+      {/* ── Tab switcher ── */}
       <View style={styles.tabSwitcher}>
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'new' && styles.tabBtnActive]}
@@ -702,6 +723,27 @@ export default function TranscriptionScreen({
           <MaterialCommunityIcons name="microphone" size={16} color={activeTab === 'new' ? '#0f766e' : '#94a3b8'} />
           <Text style={[styles.tabBtnText, activeTab === 'new' && styles.tabBtnTextActive]}>New Note</Text>
         </TouchableOpacity>
+
+        {/* Billing tab — always shown */}
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'billing' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('billing')}
+        >
+          <MaterialCommunityIcons
+            name="cash-register"
+            size={16}
+            color={activeTab === 'billing' ? '#0f766e' : '#94a3b8'}
+          />
+          <Text style={[styles.tabBtnText, activeTab === 'billing' && styles.tabBtnTextActive]}>
+            Billing
+          </Text>
+          {hasUnpaidBills && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>!</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'drafts' && styles.tabBtnActive]}
           onPress={() => setActiveTab('drafts')}
@@ -713,6 +755,7 @@ export default function TranscriptionScreen({
         </TouchableOpacity>
       </View>
 
+      {/* ── New Note tab ── */}
       {activeTab === 'new' && (
         <FlatList
           data={sections}
@@ -724,6 +767,16 @@ export default function TranscriptionScreen({
         />
       )}
 
+      {/* ── Billing tab ── */}
+      {activeTab === 'billing' && (
+        <TranscriptionBillingTab
+          visitContext={effectiveVisit}
+          selectedPatient={selectedPatient}
+          onUnpaidBillsChange={setHasUnpaidBills}
+        />
+      )}
+
+      {/* ── Drafts tab ── */}
       {activeTab === 'drafts' && (
         <FlatList
           data={drafts}
@@ -766,13 +819,32 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#0f766e', paddingTop: 50, paddingBottom: 20, paddingHorizontal: 20 },
   appName: { fontSize: 28, fontWeight: 'bold', color: '#ffffff', marginBottom: 4 },
   tagline: { fontSize: 14, color: '#d1fae5' },
-  tabSwitcher: { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingHorizontal: 16 },
-  tabBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 2, borderBottomColor: 'transparent', marginRight: 4 },
+
+  tabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    paddingHorizontal: 8,
+  },
+  tabBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingVertical: 12, paddingHorizontal: 12,
+    borderBottomWidth: 2, borderBottomColor: 'transparent', marginRight: 4,
+    position: 'relative',
+  },
   tabBtnActive: { borderBottomColor: '#0f766e' },
-  tabBtnText: { fontSize: 14, fontWeight: '500', color: '#94a3b8' },
+  tabBtnText: { fontSize: 13, fontWeight: '500', color: '#94a3b8' },
   tabBtnTextActive: { color: '#0f766e', fontWeight: '700' },
+  tabBadge: {
+    width: 16, height: 16, borderRadius: 8, backgroundColor: '#dc2626',
+    alignItems: 'center', justifyContent: 'center', marginLeft: 2,
+  },
+  tabBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
+
   listContent: { paddingBottom: 20 },
   draftsListContent: { padding: 16, paddingBottom: 40 },
+
   patientHistoryBanner: {
     backgroundColor: '#ffffff', marginHorizontal: 16, marginTop: 12, marginBottom: 8,
     padding: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center',
@@ -785,20 +857,52 @@ const styles = StyleSheet.create({
   patientHistoryHint: { fontSize: 13, color: '#6b7280', lineHeight: 18 },
   viewHistoryButton: { backgroundColor: '#3b82f6', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   viewHistoryButtonText: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
-  draftResumeBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fffbeb', marginHorizontal: 16, marginBottom: 8, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#fde68a' },
+
+  draftResumeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fffbeb',
+    marginHorizontal: 16, marginBottom: 8, borderRadius: 8, padding: 10,
+    borderWidth: 1, borderColor: '#fde68a',
+  },
   draftResumeBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#b45309' },
   draftResumeDiscard: { fontSize: 13, color: '#dc2626', fontWeight: '600' },
+
+  unpaidWarningBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fffbeb',
+    marginHorizontal: 16, marginBottom: 8, borderRadius: 10, padding: 12,
+    borderWidth: 1.5, borderColor: '#fde68a',
+  },
+  unpaidWarningTitle: { fontSize: 13, fontWeight: '700', color: '#b45309' },
+  unpaidWarningBody: { fontSize: 12, color: '#92400e', marginTop: 2 },
+
   recordingBanner: { backgroundColor: '#ef4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 8 },
   recordingBannerText: { color: '#ffffff', fontSize: 16, fontWeight: '600', marginLeft: 8 },
-  formatAllButton: { backgroundColor: '#8b5cf6', marginHorizontal: 16, marginTop: 16, marginBottom: 8, paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3, gap: 8 },
+
+  formatAllButton: {
+    backgroundColor: '#8b5cf6', marginHorizontal: 16, marginTop: 16, marginBottom: 8,
+    paddingVertical: 14, borderRadius: 12, alignItems: 'center', flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
+    gap: 8,
+  },
   formatAllButtonDisabled: { backgroundColor: '#9ca3af' },
   formatAllButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
+
   actionButtonsRow: { flexDirection: 'row', gap: 12, marginHorizontal: 16, marginVertical: 24 },
-  saveDraftButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#f0fdf4', borderRadius: 12, height: 52, borderWidth: 2, borderColor: '#0f766e' },
+  saveDraftButton: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#f0fdf4', borderRadius: 12, height: 52,
+    borderWidth: 2, borderColor: '#0f766e',
+  },
   saveDraftButtonText: { color: '#0f766e', fontWeight: '700', fontSize: 15 },
-  saveButton: { flex: 2, backgroundColor: '#0f766e', borderRadius: 12, alignItems: 'center', justifyContent: 'center', height: 52, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, flexDirection: 'row' },
+  saveButton: {
+    flex: 2, backgroundColor: '#0f766e', borderRadius: 12, alignItems: 'center',
+    justifyContent: 'center', height: 52,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+    flexDirection: 'row',
+  },
   saveButtonDisabled: { backgroundColor: '#9ca3af' },
   saveButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
+
   draftsLoading: { alignItems: 'center', paddingTop: 40, gap: 12 },
   draftsLoadingText: { color: '#64748b', fontSize: 14 },
   draftsEmpty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32, gap: 12 },

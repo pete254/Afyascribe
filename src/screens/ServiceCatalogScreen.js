@@ -459,6 +459,7 @@ export default function ServiceCatalogScreen({ onBack }) {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.filterContent}
+          style={{ maxHeight: 44 }}
         >
           {categories.map(cat => {
             const meta = cat === 'all'
@@ -526,9 +527,9 @@ const s = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15, color: '#0f172a' },
 
-  filterContent: { paddingHorizontal: 12, paddingBottom: 10, gap: 8 },
+  filterContent: { paddingHorizontal: 12, paddingBottom: 10, gap: 8, alignItems: 'center' },
   filterPill: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
     borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#fff',
   },
   filterPillText: { fontSize: 13, color: '#64748b', fontWeight: '500' },
