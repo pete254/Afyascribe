@@ -785,6 +785,12 @@ getInsuranceClaimsExportUrl(from, to, scheme) {
       method: 'DELETE',
     });
   }
+
+  
+  async getDraftForPatient(patientId) {
+  const drafts = await this.getMyDrafts();
+  return drafts.find(d => d.patientId === patientId || d.patient?.id === patientId) || null;
+}
 }
 
 export default new ApiService();

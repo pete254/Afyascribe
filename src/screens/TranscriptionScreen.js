@@ -122,6 +122,9 @@ export default function TranscriptionScreen({
   // Billing unpaid flag (from billing tab callback)
   const [hasUnpaidBills, setHasUnpaidBills] = useState(false);
 
+  // Loading state for draft restoration
+  const [loadingExistingDraft, setLoadingExistingDraft] = useState(false);
+
   const removePendingDoc = (localId) => {
     setPendingDocs(prev => prev.filter(d => d.localId !== localId));
   };
@@ -178,12 +181,54 @@ export default function TranscriptionScreen({
       setDiagnosis(noteToEdit.diagnosis || '');
       setManagement(noteToEdit.management || '');
       if (noteToEdit.icd10Code) {
-        setSelectedIcd10Code({ code: noteToEdit.icd10Code, short_description: noteToEdit.icd10Description || '' });
+        setSelectedIcd10Code({ 
+          code: noteToEdit.icd10Code, 
+          short_description: noteToEdit.icd10Description || '' 
+        });
       }
       setCurrentDraftId(noteToEdit.id);
       setActiveTab('new');
     }
   }, [noteToEdit]);
+
+  // Auto-load existing draft when opening from My Queue
+  useEffect(() => {
+    const restoreExistingDraft = async () => {
+      // Only run if we have a patient (from visitContext or preselectedPatient)
+      // and we don't already have a note to edit
+      const patientToCheck = preselectedPatient || (visitContext?.patient);
+      if (!patientToCheck || noteToEdit) return;
+      
+      setLoadingExistingDraft(true);
+      try {
+        const apiService = require('../services/apiService').default;
+        const existingDraft = await apiService.getDraftForPatient(patientToCheck.id);
+        
+        if (existingDraft) {
+          console.log('✅ Found existing draft for patient, restoring...');
+          setSymptoms(existingDraft.symptoms || '');
+          setPhysicalExamination(existingDraft.physicalExamination || '');
+          setLabInvestigations(existingDraft.labInvestigations || '');
+          setImaging(existingDraft.imaging || '');
+          setDiagnosis(existingDraft.diagnosis || '');
+          setManagement(existingDraft.management || '');
+          if (existingDraft.icd10Code) {
+            setSelectedIcd10Code({
+              code: existingDraft.icd10Code,
+              short_description: existingDraft.icd10Description || '',
+            });
+          }
+          setCurrentDraftId(existingDraft.id);
+        }
+      } catch (e) {
+        console.error('Failed to restore existing draft:', e);
+      } finally {
+        setLoadingExistingDraft(false);
+      }
+    };
+
+    restoreExistingDraft();
+  }, [preselectedPatient, visitContext]);
 
   // Load drafts
   const loadDrafts = useCallback(async (silent = false) => {
@@ -353,19 +398,41 @@ export default function TranscriptionScreen({
       imaging.trim() || diagnosis.trim() || management.trim();
     if (!hasContent) { Alert.alert('Error', 'Add content to at least one section'); return; }
 
-    // Warn if unpaid bills — note will be saved as draft anyway
+    // If unpaid bills — save as draft silently and inform doctor
     if (hasUnpaidBills) {
-      Alert.alert(
-        'Unpaid Bills',
-        'This patient has unpaid bills. The note will be saved as a draft. Ask the receptionist to collect payment, then return here to finalise.',
-        [
-          { text: 'Save as Draft', onPress: handleSaveDraft },
-          { text: 'Cancel', style: 'cancel' },
-        ],
-      );
-      return;
+      setIsSavingDraft(true);
+      try {
+        const apiService = require('../services/apiService').default;
+        const fields = {
+          symptoms: symptoms.trim(),
+          physicalExamination: physicalExamination.trim(),
+          labInvestigations: labInvestigations.trim(),
+          imaging: imaging.trim(),
+          diagnosis: diagnosis.trim(),
+          icd10Code: selectedIcd10Code?.code || null,
+          icd10Description: selectedIcd10Code?.short_description || null,
+          management: management.trim(),
+        };
+        if (currentDraftId) {
+          await apiService.updateDraft(currentDraftId, selectedPatient.id, fields);
+        } else {
+          const saved = await apiService.createDraft(selectedPatient.id, fields);
+          setCurrentDraftId(saved.id);
+        }
+        Alert.alert(
+          '📝 Draft Saved',
+          `The note has been saved as a draft for ${selectedPatient.firstName} ${selectedPatient.lastName}.\n\nOnce the receptionist collects payment, come back to Drafts and finalise it.`,
+          [{ text: 'OK' }],
+        );
+      } catch (e) {
+        Alert.alert('Error', `Failed to save draft: ${e.message}`);
+      } finally {
+        setIsSavingDraft(false);
+      }
+      return; // Don't proceed to finalise
     }
 
+    // No unpaid bills — finalise normally
     setIsSaving(true);
     try {
       const apiService = require('../services/apiService').default;
@@ -695,7 +762,11 @@ export default function TranscriptionScreen({
             ) : (
               <><Ionicons name="save-outline" size={20} color="#ffffff" />
                 <Text style={styles.saveButtonText}>
-                  {hasUnpaidBills ? '  Save as Draft' : currentDraftId ? '  Finalise Note' : '  Save SOAP Note'}
+                  {hasUnpaidBills 
+                    ? '  Save Draft (Bills Pending)' 
+                    : currentDraftId 
+                    ? '  Finalise Note' 
+                    : '  Save SOAP Note'}
                 </Text></>
             )}
           </TouchableOpacity>
@@ -727,7 +798,40 @@ export default function TranscriptionScreen({
         {/* Billing tab — always shown */}
         <TouchableOpacity
           style={[styles.tabBtn, activeTab === 'billing' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('billing')}
+          onPress={async () => {
+            setActiveTab('billing');
+            // Auto-save draft when switching to billing so it persists
+            if (selectedPatient) {
+              const hasContent = symptoms.trim() || physicalExamination.trim() ||
+                labInvestigations.trim() || imaging.trim() ||
+                diagnosis.trim() || management.trim();
+              if (hasContent) {
+                try {
+                  const apiService = require('../services/apiService').default;
+                  const fields = {
+                    symptoms: symptoms.trim(),
+                    physicalExamination: physicalExamination.trim(),
+                    labInvestigations: labInvestigations.trim(),
+                    imaging: imaging.trim(),
+                    diagnosis: diagnosis.trim(),
+                    icd10Code: selectedIcd10Code?.code || null,
+                    icd10Description: selectedIcd10Code?.short_description || null,
+                    management: management.trim(),
+                  };
+                  if (currentDraftId) {
+                    await apiService.updateDraft(currentDraftId, selectedPatient.id, fields);
+                    console.log('✅ Draft updated on billing tab switch');
+                  } else {
+                    const saved = await apiService.createDraft(selectedPatient.id, fields);
+                    setCurrentDraftId(saved.id);
+                    console.log('✅ Draft created on billing tab switch:', saved.id);
+                  }
+                } catch (e) {
+                  console.error('Auto-save on billing switch failed:', e);
+                }
+              }
+            }
+          }}
         >
           <MaterialCommunityIcons
             name="cash-register"

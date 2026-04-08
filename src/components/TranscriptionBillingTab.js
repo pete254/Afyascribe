@@ -135,7 +135,7 @@ function ServicePickerModal({ visible, onClose, onSelect, onCustom }) {
             <FlatList
               data={filtered}
               keyExtractor={(i) => i.id}
-              style={{ flex: 1 }}
+              style={{ maxHeight: 350 }}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
                 <View style={pm.empty}>
@@ -669,6 +669,7 @@ const pm = StyleSheet.create({
   sheet: {
     backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     maxHeight: '88%', paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    flexShrink:1,
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
