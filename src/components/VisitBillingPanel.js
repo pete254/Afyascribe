@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import apiService from '../services/apiService';
+import { usePrintReceipt } from '../utils/printReceipt';
 
 // Category metadata
 const CATEGORY_META = {
@@ -550,6 +551,7 @@ export default function VisitBillingPanel({ visit, onBillsChanged }) {
   const unpaidTotal  = summary?.unpaid ?? 0;
   const hasUnpaid    = unpaidTotal > 0;
   const totalBilled  = summary?.total ?? 0;
+  const handlePrint = usePrintReceipt(visit.id, visit.patient);
 
   return (
     <View style={s.container}>
@@ -564,16 +566,23 @@ export default function VisitBillingPanel({ visit, onBillsChanged }) {
             </View>
           )}
         </View>
-        <TouchableOpacity
-          style={[s.addBtn, adding && s.addBtnDisabled]}
-          onPress={() => setPickerVisible(true)}
-          disabled={adding}
-        >
-          {adding
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <><Ionicons name="add" size={16} color="#fff" /><Text style={s.addBtnText}>Add Service</Text></>
-          }
-        </TouchableOpacity>
+        <View style={s.headerRight}>
+          {bills.length > 0 && (
+            <TouchableOpacity style={s.printBtn} onPress={handlePrint}>
+              <MaterialCommunityIcons name="printer-outline" size={16} color="#64748b" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[s.addBtn, adding && s.addBtnDisabled]}
+            onPress={() => setPickerVisible(true)}
+            disabled={adding}
+          >
+            {adding
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <><Ionicons name="add" size={16} color="#fff" /><Text style={s.addBtnText}>Add Service</Text></>
+            }
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Bills list */}
@@ -644,11 +653,16 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
   unpaidBadge: {
     backgroundColor: '#fef3c7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
   },
   unpaidBadgeText: { fontSize: 11, fontWeight: '700', color: '#b45309' },
+  printBtn: {
+    width: 36, height: 36, borderRadius: 8, backgroundColor: '#f1f5f9',
+    alignItems: 'center', justifyContent: 'center',
+  },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#0f766e', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,

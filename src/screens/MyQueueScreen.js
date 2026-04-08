@@ -10,10 +10,12 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../services/apiService';
 import VisitBillingPanel from '../components/VisitBillingPanel';
+import ColorCodedVitals from '../components/ColorCodedVitals';
 
 export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient }) {
   const insets = useSafeAreaInsets();
   const [visits, setVisits] = useState([]);
+  const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   // Track which visit has billing expanded
@@ -30,15 +32,28 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
     }
   }, []);
 
+  const loadAppointments = useCallback(async () => {
+    try {
+      const data = await apiService.getMyTodayAppointments();
+      setAppointments(data || []);
+    } catch (e) {
+      console.error('Failed to load appointments:', e);
+    }
+  }, []);
+
   useEffect(() => {
     loadQueue();
-    const interval = setInterval(loadQueue, 30000);
+    loadAppointments();
+    const interval = setInterval(() => {
+      loadQueue();
+      loadAppointments();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [loadQueue]);
+  }, [loadQueue, loadAppointments]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadQueue();
+    await Promise.all([loadQueue(), loadAppointments()]);
     setRefreshing(false);
   };
 
@@ -63,8 +78,78 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
     return `${Math.floor(mins / 60)}h ${mins % 60}m waiting`;
   };
 
-  const toggleBilling = (visitId) => {
-    setExpandedBillingVisitId(prev => prev === visitId ? null : visitId);
+  const handleAppointmentStatus = async (appointmentId, newStatus) => {
+    try {
+      await apiService.updateAppointment(appointmentId, { status: newStatus });
+      await loadAppointments();
+      Alert.alert('Success', `Appointment marked as ${newStatus}`);
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to update appointment');
+    }
+  };
+
+  const formatAppointmentTime = (dateStr) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const renderAppointmentCard = ({ item }) => {
+    const patient = item.patient;
+    const time = formatAppointmentTime(item.scheduledTime);
+    const statusColor = {
+      scheduled: '#3b82f6',
+      completed: '#10b981',
+      missed: '#ef4444',
+    }[item.status] || '#6b7280';
+
+    return (
+      <View style={styles.appointmentCard}>
+        <View style={styles.appointmentTop}>
+          <View style={styles.appointmentAvatar}>
+            <Text style={styles.appointmentAvatarText}>{patient?.firstName?.[0]}{patient?.lastName?.[0]}</Text>
+          </View>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.appointmentPatientName}>{patient?.firstName} {patient?.lastName}</Text>
+            <Text style={styles.appointmentPatientId}>{patient?.patientId}</Text>
+          </View>
+          <View style={[styles.appointmentStatus, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
+            <Text style={[styles.appointmentStatusText, { color: statusColor }]}>{item.status}</Text>
+          </View>
+        </View>
+
+        <View style={styles.appointmentDetails}>
+          <View style={styles.appointmentDetailRow}>
+            <MaterialCommunityIcons name="clock-outline" size={14} color="#94a3b8" />
+            <Text style={styles.appointmentDetailText}>{time}</Text>
+          </View>
+          {item.reason && (
+            <View style={styles.appointmentDetailRow}>
+              <MaterialCommunityIcons name="stethoscope" size={14} color="#94a3b8" />
+              <Text style={styles.appointmentDetailText} numberOfLines={1}>{item.reason}</Text>
+            </View>
+          )}
+        </View>
+
+        {item.status === 'scheduled' && (
+          <View style={styles.appointmentActions}>
+            <TouchableOpacity
+              style={[styles.appointmentActionBtn, styles.appointmentCompleteBtn]}
+              onPress={() => handleAppointmentStatus(item.id, 'completed')}
+            >
+              <MaterialCommunityIcons name="check-circle-outline" size={14} color="#fff" />
+              <Text style={styles.appointmentActionBtnText}>Completed</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.appointmentActionBtn, styles.appointmentMissedBtn]}
+              onPress={() => handleAppointmentStatus(item.id, 'missed')}
+            >
+              <MaterialCommunityIcons name="close-circle-outline" size={14} color="#fff" />
+              <Text style={styles.appointmentActionBtnText}>Missed</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
   };
 
   const renderVisit = ({ item, index }) => {
@@ -107,14 +192,7 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
               <Text style={styles.triageBoxTitle}>
                 <MaterialCommunityIcons name="heart-pulse" size={13} color="#0f766e" /> Triage Vitals
               </Text>
-              <View style={styles.vitalsRow}>
-                {item.triageData.bloodPressure && <View style={styles.vital}><Text style={styles.vitalVal}>{item.triageData.bloodPressure}</Text><Text style={styles.vitalLabel}>BP</Text></View>}
-                {item.triageData.temperature && <View style={styles.vital}><Text style={styles.vitalVal}>{item.triageData.temperature}</Text><Text style={styles.vitalLabel}>Temp</Text></View>}
-                {item.triageData.pulse && <View style={styles.vital}><Text style={styles.vitalVal}>{item.triageData.pulse}</Text><Text style={styles.vitalLabel}>Pulse</Text></View>}
-                {item.triageData.spO2 && <View style={styles.vital}><Text style={styles.vitalVal}>{item.triageData.spO2}</Text><Text style={styles.vitalLabel}>SpO₂</Text></View>}
-                {item.triageData.weight && <View style={styles.vital}><Text style={styles.vitalVal}>{item.triageData.weight}</Text><Text style={styles.vitalLabel}>Weight</Text></View>}
-              </View>
-              {item.triageData.notes ? <Text style={styles.triageNotes}>{item.triageData.notes}</Text> : null}
+              <ColorCodedVitals triageData={item.triageData} compact={true} />
             </View>
           )}
 
@@ -213,6 +291,22 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
         renderItem={renderVisit}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f766e" />}
+        ListHeaderComponent={appointments.length > 0 ? (
+          <View style={styles.appointmentsSection}>
+            <View style={styles.appointmentsSectionHeader}>
+              <MaterialCommunityIcons name="calendar-check" size={18} color="#0f766e" />
+              <Text style={styles.appointmentsSectionTitle}>Today's Appointments ({appointments.length})</Text>
+            </View>
+            <FlatList
+              data={appointments}
+              keyExtractor={(item) => item.id}
+              renderItem={renderAppointmentCard}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+            />
+            <View style={styles.appointmentsDivider} />
+          </View>
+        ) : null}
         ListEmptyComponent={
           <View style={styles.empty}>
             <MaterialCommunityIcons name="account-clock-outline" size={48} color="#cbd5e1" />
@@ -264,11 +358,6 @@ const styles = StyleSheet.create({
 
   triageBox: { backgroundColor: '#f0fdf4', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#bbf7d0' },
   triageBoxTitle: { fontSize: 12, fontWeight: '700', color: '#0f766e', marginBottom: 8 },
-  vitalsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  vital: { backgroundColor: '#fff', borderRadius: 8, padding: 8, alignItems: 'center', minWidth: 56, borderWidth: 1, borderColor: '#d1fae5' },
-  vitalVal: { fontSize: 13, fontWeight: '700', color: '#065f46' },
-  vitalLabel: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
-  triageNotes: { fontSize: 12, color: '#64748b', marginTop: 8, fontStyle: 'italic' },
 
   noTriageBox: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   noTriageText: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
@@ -311,4 +400,51 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#374151', marginTop: 16 },
   emptySub: { fontSize: 14, color: '#9ca3af', marginTop: 4, textAlign: 'center', paddingHorizontal: 32 },
+
+  // ── Appointments section ──────────────────────────────────────────────────
+  appointmentsSection: { marginBottom: 16 },
+  appointmentsSectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 0, paddingVertical: 12, marginBottom: 12,
+  },
+  appointmentsSectionTitle: { fontSize: 15, fontWeight: '700', color: '#0f766e' },
+  appointmentCard: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    borderWidth: 1.5, borderColor: '#dbeafe',
+    backgroundColor: '#f0f9ff',
+  },
+  appointmentTop: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 10,
+  },
+  appointmentAvatar: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#bfdbfe', justifyContent: 'center', alignItems: 'center',
+  },
+  appointmentAvatarText: { fontSize: 13, fontWeight: '700', color: '#1e40af' },
+  appointmentPatientName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  appointmentPatientId: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  appointmentStatus: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 8, borderWidth: 1,
+  },
+  appointmentStatusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
+  appointmentDetails: { gap: 6, marginBottom: 10 },
+  appointmentDetailRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  appointmentDetailText: { fontSize: 13, color: '#475569', flex: 1 },
+  appointmentActions: {
+    flexDirection: 'row', gap: 8,
+  },
+  appointmentActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 8, borderRadius: 8,
+  },
+  appointmentCompleteBtn: { backgroundColor: '#10b981' },
+  appointmentMissedBtn: { backgroundColor: '#ef4444' },
+  appointmentActionBtnText: { fontSize: 12, fontWeight: '600', color: '#fff' },
+  appointmentsDivider: {
+    height: 1, backgroundColor: '#e2e8f0',
+    marginVertical: 14,
+  },
 });

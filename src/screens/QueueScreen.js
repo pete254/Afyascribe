@@ -9,6 +9,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import apiService from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
+import { printReceipt } from '../utils/printReceipt';
 
 const STATUS_COLOR = {
   checked_in:         { bg: '#fef9c3', text: '#854d0e', label: 'Checked In' },
@@ -403,11 +404,26 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
                           </TouchableOpacity>
                         </View>
                       ) : (
-                        <View style={styles.paidTag}>
-                          <Ionicons name="checkmark-circle" size={14} color="#166534" />
-                          <Text style={styles.paidTagText}>
-                            {bill.status === 'waived' ? 'Waived' : `Paid · ${bill.paymentMethod ?? ''}`}
-                          </Text>
+                        <View style={styles.paidActions}>
+                          <View style={styles.paidTag}>
+                            <Ionicons name="checkmark-circle" size={14} color="#166534" />
+                            <Text style={styles.paidTagText}>
+                              {bill.status === 'waived' ? 'Waived' : `Paid · ${bill.paymentMethod ?? ''}`}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.printBtn}
+                            onPress={() => printReceipt({
+                              patient: billingVisit?.patient,
+                              bills: billingData[billingVisit?.id]?.bills,
+                              summary: billingData[billingVisit?.id],
+                              facility: { name: user?.facilityName },
+                              collectedBy: `${user?.firstName} ${user?.lastName}`,
+                            })}
+                          >
+                            <MaterialCommunityIcons name="printer" size={14} color="#0f766e" />
+                            <Text style={styles.printBtnText}>Print</Text>
+                          </TouchableOpacity>
                         </View>
                       )}
                     </View>
@@ -513,8 +529,11 @@ const styles = StyleSheet.create({
   billAmt: { fontSize: 15, fontWeight: '700', color: '#0f766e', marginTop: 4 },
   payBtn: { backgroundColor: '#0f766e', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   payBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  paidTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#dcfce7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  paidActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  paidTag: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#dcfce7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
   paidTagText: { fontSize: 12, fontWeight: '600', color: '#166534' },
+  printBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: '#0f766e', backgroundColor: '#f0fdf9' },
+  printBtnText: { fontSize: 12, fontWeight: '600', color: '#0f766e' },
 
   noBillsText: { color: '#94a3b8', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
   billTotals: { paddingTop: 14, gap: 4 },

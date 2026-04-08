@@ -84,6 +84,7 @@ export default function TranscriptionScreen({
   onViewPatientHistory,
   onClearPatient,
   onClearNote,
+  onSoapNoteSaved,  // Called after successful save with { patient, soapNoteId }
 }) {
   // 'new' | 'billing' | 'drafts'
   const [activeTab, setActiveTab] = useState('new');
@@ -457,6 +458,11 @@ export default function TranscriptionScreen({
 
       if (result?.id && pendingDocs.length > 0) {
         await uploadPendingDocs(selectedPatient.id, result.id);
+      }
+
+      // Call the callback with patient and soapNoteId
+      if (onSoapNoteSaved) {
+        onSoapNoteSaved({ patient: selectedPatient, soapNoteId: result?.id });
       }
 
       Alert.alert('Success', 'SOAP note saved successfully!', [

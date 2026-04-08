@@ -22,6 +22,7 @@ import QueuePatientScreen from './src/screens/QueuePatientScreen';
 import QueueScreen from './src/screens/QueueScreen';
 import MyQueueScreen from './src/screens/MyQueueScreen';
 import TriageScreen from './src/screens/TriageScreen';
+import DischargeScreen from './src/screens/DischargeScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import ReportsScreen from './src/screens/ReportsScreen';
 
@@ -127,6 +128,7 @@ function MainApp() {
   const [noteToEdit, setNoteToEdit] = useState(null);
   const [triageVisit, setTriageVisit] = useState(null);
   const [soapVisit, setSoapVisit] = useState(null);
+  const [dischargeContext, setDischargeContext] = useState(null);
 
   if (loading) {
     return (
@@ -233,7 +235,7 @@ function MainApp() {
   // ── Tab bar visibility ───────────────────────────────────────────────────────
   const hideTabBar = [
     'patient-history', 'onboard-patient', 'patient-directory',
-    'queue-patient', 'queue', 'my-queue', 'triage', 'reports', 'service-catalog'
+    'queue-patient', 'queue', 'my-queue', 'triage', 'reports', 'service-catalog', 'discharge'
   ].includes(activeScreen);
 
   // ── Screen renderer ──────────────────────────────────────────────────────────
@@ -333,6 +335,19 @@ function MainApp() {
       case 'reports':
         return <ReportsScreen onBack={goBack} />;
 
+      case 'discharge':
+        return (
+          <DischargeScreen
+            patient={dischargeContext?.patient}
+            soapNoteId={dischargeContext?.soapNoteId}
+            onDischarge={({ scheduled }) => {
+              setDischargeContext(null);
+              goToHome();
+            }}
+            onBack={() => setActiveScreen('transcription')}
+          />
+        );
+
       case 'transcription':
       default:
         return (
@@ -343,6 +358,10 @@ function MainApp() {
             onViewPatientHistory={goToPatientHistory}
             onClearPatient={() => setSelectedPatient(null)}
             onClearNote={clearEditMode}
+            onSoapNoteSaved={(ctx) => {
+              setDischargeContext(ctx);
+              setActiveScreen('discharge');
+            }}
           />
         );
     }

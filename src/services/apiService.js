@@ -791,6 +791,41 @@ getInsuranceClaimsExportUrl(from, to, scheme) {
   const drafts = await this.getMyDrafts();
   return drafts.find(d => d.patientId === patientId || d.patient?.id === patientId) || null;
 }
+
+  // ==================== APPOINTMENTS ENDPOINTS ====================
+
+  async createAppointment(data) {
+    return await this.request('/appointments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMyTodayAppointments() {
+    return await this.request('/appointments/my-today');
+  }
+
+  async getFacilityAppointments(date) {
+    const q = date ? `?date=${date}` : '';
+    return await this.request(`/appointments/facility${q}`);
+  }
+
+  async getPatientAppointments(patientId) {
+    return await this.request(`/appointments/patient/${patientId}`);
+  }
+
+  async updateAppointment(id, data) {
+    return await this.request(`/appointments/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAppointment(id) {
+    return await this.request(`/appointments/${id}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export default new ApiService();

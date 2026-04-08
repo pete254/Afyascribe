@@ -43,6 +43,7 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [appointmentData, setAppointmentData] = useState(null);
   const [reasonForVisit, setReasonForVisit] = useState('');
   const [reasonPickerVisible, setReasonPickerVisible] = useState(false);
   const [doctors, setDoctors] = useState([]);
@@ -101,10 +102,24 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
     }
   };
 
-  const selectPatient = (patient) => {
+  const selectPatient = async (patient) => {
     setSelectedPatient(patient);
     setSearchQuery(`${patient.firstName} ${patient.lastName}`);
     setSearchResults([]);
+    
+    // Check if patient has an appointment for today
+    try {
+      const appointments = await apiService.getPatientAppointments(patient.id);
+      const todayAppointment = appointments?.find(apt => {
+        const aptDate = new Date(apt.scheduledTime).toDateString();
+        const todayDate = new Date().toDateString();
+        return aptDate === todayDate && apt.status === 'scheduled';
+      });
+      setAppointmentData(todayAppointment || null);
+    } catch (e) {
+      console.error('Failed to check appointments:', e);
+      setAppointmentData(null);
+    }
   };
 
   const selectedServiceLabel = SERVICE_TYPES.find(s => s.value === serviceType)?.label ?? 'Consultation';
@@ -211,15 +226,29 @@ export default function QueuePatientScreen({ onBack, onSuccess }) {
         )}
 
         {selectedPatient && (
-          <View style={styles.selectedCard}>
-            <MaterialCommunityIcons name="account-check" size={20} color="#0f766e" />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.selectedName}>{selectedPatient.firstName} {selectedPatient.lastName}</Text>
-              <Text style={styles.selectedMeta}>{selectedPatient.patientId}</Text>
+          <View>
+            <View style={styles.selectedCard}>
+              <MaterialCommunityIcons name="account-check" size={20} color="#0f766e" />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.selectedName}>{selectedPatient.firstName} {selectedPatient.lastName}</Text>
+                <Text style={styles.selectedMeta}>{selectedPatient.patientId}</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setSelectedPatient(null); setSearchQuery(''); }}>
+                <Ionicons name="close-circle" size={20} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => { setSelectedPatient(null); setSearchQuery(''); }}>
-              <Ionicons name="close-circle" size={20} color="#94a3b8" />
-            </TouchableOpacity>
+            {appointmentData && (
+              <View style={styles.appointmentBadge}>
+                <MaterialCommunityIcons name="calendar-check" size={16} color="#0f766e" />
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.appointmentBadgeTitle}>📅 Has Appointment Today</Text>
+                  <Text style={styles.appointmentBadgeTime}>
+                    {new Date(appointmentData.scheduledTime).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
+                    {appointmentData.reason ? ` · ${appointmentData.reason}` : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -507,6 +536,14 @@ const styles = StyleSheet.create({
   selectedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf4', borderRadius: 8, padding: 12, marginTop: 8, borderWidth: 1, borderColor: '#bbf7d0' },
   selectedName: { fontSize: 14, fontWeight: '600', color: '#166534' },
   selectedMeta: { fontSize: 12, color: '#16a34a', marginTop: 2 },
+
+  appointmentBadge: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#dbeafe', borderRadius: 8, padding: 12,
+    marginTop: 8, borderWidth: 1, borderColor: '#93c5fd',
+  },
+  appointmentBadgeTitle: { fontSize: 13, fontWeight: '700', color: '#1e40af' },
+  appointmentBadgeTime: { fontSize: 12, color: '#1e3a8a', marginTop: 2 },
 
   textArea: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 15, color: '#0f172a', minHeight: 70, textAlignVertical: 'top', marginBottom: 10 },
 
