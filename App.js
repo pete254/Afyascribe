@@ -128,6 +128,7 @@ function MainApp() {
   const [noteToEdit, setNoteToEdit] = useState(null);
   const [triageVisit, setTriageVisit] = useState(null);
   const [soapVisit, setSoapVisit] = useState(null);
+  const [viewTriageOnly, setViewTriageOnly] = useState(false);
   const [dischargeContext, setDischargeContext] = useState(null);
 
   if (loading) {
@@ -220,6 +221,13 @@ function MainApp() {
 
   const goToTriage = (visit = null) => {
     setTriageVisit(visit);
+    setViewTriageOnly(false);
+    setActiveScreen('triage');
+  };
+
+  const goToViewTriage = (visit) => {
+    setTriageVisit(visit);
+    setViewTriageOnly(true);
     setActiveScreen('triage');
   };
   
@@ -279,6 +287,7 @@ function MainApp() {
             onBack={goBack}
             onOpenSoapNote={openSoapFromQueue}
             onTriagePatient={(visit) => goToTriage(visit)}
+            onViewTriage={(visit) => goToViewTriage(visit)}
           />
         );
 
@@ -287,6 +296,8 @@ function MainApp() {
           <TriageScreen
             onBack={goBack}
             preselectedVisit={triageVisit}
+            viewTriageOnly={viewTriageOnly}
+            onContinueToSOAP={openSoapFromQueue}
           />
         );
 

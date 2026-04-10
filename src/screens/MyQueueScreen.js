@@ -1,5 +1,5 @@
 // src/screens/MyQueueScreen.js
-// UPDATED: Embedded VisitBillingPanel so doctors can add/edit bills during consultation
+// UPDATED: Simplified to show patient cards with View Triage option
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -9,17 +9,13 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../services/apiService';
-import VisitBillingPanel from '../components/VisitBillingPanel';
-import ColorCodedVitals from '../components/ColorCodedVitals';
 
-export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient }) {
+export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient, onViewTriage }) {
   const insets = useSafeAreaInsets();
   const [visits, setVisits] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  // Track which visit has billing expanded
-  const [expandedBillingVisitId, setExpandedBillingVisitId] = useState(null);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -155,7 +151,6 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
   const renderVisit = ({ item, index }) => {
     const patient = item.patient;
     const isWithMe = item.status === 'with_doctor';
-    const isBillingExpanded = expandedBillingVisitId === item.id;
 
     return (
       <View style={[styles.card, isWithMe && styles.cardActive]}>
@@ -183,77 +178,60 @@ export default function MyQueueScreen({ onBack, onOpenSoapNote, onTriagePatient 
           {/* Reason for visit */}
           <View style={styles.reasonRow}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={14} color="#94a3b8" />
-            <Text style={styles.reasonText} numberOfLines={2}>{item.reasonForVisit}</Text>
+            <Text style={styles.reasonText} numberOfLines={1}>{item.reasonForVisit}</Text>
           </View>
 
-          {/* Triage vitals */}
-          {item.triageCompleted && item.triageData && (
-            <View style={styles.triageBox}>
-              <Text style={styles.triageBoxTitle}>
-                <MaterialCommunityIcons name="heart-pulse" size={13} color="#0f766e" /> Triage Vitals
-              </Text>
-              <ColorCodedVitals triageData={item.triageData} compact={true} />
-            </View>
-          )}
-
-          {!item.triageCompleted && (
-            <View style={styles.noTriageBox}>
-              <Ionicons name="alert-circle-outline" size={14} color="#f59e0b" />
-              <Text style={styles.noTriageText}>No triage recorded</Text>
-            </View>
-          )}
-
-          <Text style={styles.waitTime}>{waitingTime(item.checkedInAt)}</Text>
-
-          {/* ── BILLING SECTION ── */}
-          <View style={styles.billingSectionContainer}>
-            <TouchableOpacity
-              style={[styles.billingToggle, isBillingExpanded && styles.billingToggleActive]}
-              onPress={() => toggleBilling(item.id)}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons
-                name="cash-register"
-                size={15}
-                color={isBillingExpanded ? '#0f766e' : '#64748b'}
-              />
-              <Text style={[styles.billingToggleText, isBillingExpanded && styles.billingToggleTextActive]}>
-                {isBillingExpanded ? 'Hide Bills' : 'Manage Bills'}
-              </Text>
-              <Ionicons
-                name={isBillingExpanded ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={isBillingExpanded ? '#0f766e' : '#94a3b8'}
-              />
-            </TouchableOpacity>
-
-            {isBillingExpanded && (
-              <View style={styles.billingPanelWrapper}>
-                <VisitBillingPanel
-                  visit={item}
-                  onBillsChanged={loadQueue}
-                />
+          {/* Triage status */}
+          <View style={styles.triageStatusRow}>
+            {item.triageCompleted ? (
+              <View style={styles.triagedBadge}>
+                <MaterialCommunityIcons name="check-circle" size={13} color="#10b981" />
+                <Text style={styles.triagedBadgeText}>Triage Completed</Text>
+              </View>
+            ) : (
+              <View style={styles.pendingBadge}>
+                <MaterialCommunityIcons name="alert-circle" size={13} color="#f59e0b" />
+                <Text style={styles.pendingBadgeText}>Pending Triage</Text>
               </View>
             )}
           </View>
 
+          <Text style={styles.waitTime}>{waitingTime(item.checkedInAt)}</Text>
+
           {/* Action buttons */}
           <View style={styles.actions}>
-            {!item.triageCompleted && (
+            {item.triageCompleted ? (
+              <>
+                <TouchableOpacity
+                  style={styles.viewTriageBtn}
+                  onPress={() => onViewTriage && onViewTriage(item)}
+                >
+                  <MaterialCommunityIcons name="eye-outline" size={14} color="#0f766e" />
+                  <Text style={styles.viewTriageBtnText}>View</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.updateTriageBtn}
+                  onPress={() => onTriagePatient && onTriagePatient(item)}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={14} color="#7c3aed" />
+                  <Text style={styles.updateTriageBtnText}>Update</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
               <TouchableOpacity
-                style={styles.triageBtn}
+                style={styles.doTriageBtn}
                 onPress={() => onTriagePatient && onTriagePatient(item)}
               >
-                <MaterialCommunityIcons name="heart-pulse" size={15} color="#7c3aed" />
-                <Text style={styles.triagedBtnText}>Do Triage</Text>
+                <MaterialCommunityIcons name="heart-pulse" size={14} color="#7c3aed" />
+                <Text style={styles.doTriageBtnText}>Do Triage</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[styles.soapBtn, !item.triageCompleted && styles.soapBtnSecondary]}
+              style={styles.soapBtn}
               onPress={() => handleOpenPatient(item)}
             >
-              <MaterialCommunityIcons name="microphone-outline" size={15} color="#fff" />
-              <Text style={styles.soapBtnText}>Open & Write SOAP</Text>
+              <MaterialCommunityIcons name="microphone-outline" size={14} color="#fff" />
+              <Text style={styles.soapBtnText}>SOAP Note</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -353,49 +331,56 @@ const styles = StyleSheet.create({
   withMeBadge: { backgroundColor: '#dcfce7', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   withMeText: { fontSize: 11, fontWeight: '700', color: '#166534' },
 
-  reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 10 },
-  reasonText: { flex: 1, fontSize: 13, color: '#64748b', lineHeight: 18 },
+  reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 8 },
+  reasonText: { flex: 1, fontSize: 12, color: '#64748b' },
 
-  triageBox: { backgroundColor: '#f0fdf4', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#bbf7d0' },
-  triageBoxTitle: { fontSize: 12, fontWeight: '700', color: '#0f766e', marginBottom: 8 },
-
-  noTriageBox: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  noTriageText: { fontSize: 12, color: '#f59e0b', fontWeight: '600' },
-
-  waitTime: { fontSize: 12, color: '#94a3b8', marginBottom: 10 },
-
-  // ── Billing section ───────────────────────────────────────────────────────
-  billingSectionContainer: { marginBottom: 12 },
-  billingToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: 7,
-    paddingVertical: 9, paddingHorizontal: 12,
-    backgroundColor: '#f8fafc', borderRadius: 10,
-    borderWidth: 1, borderColor: '#e2e8f0',
+  triageStatusRow: { marginBottom: 8 },
+  triagedBadge: { 
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#ecfdf5', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: '#bbf7d0',
+    alignSelf: 'flex-start',
   },
-  billingToggleActive: {
-    backgroundColor: '#f0fdf4', borderColor: '#bbf7d0',
+  triagedBadgeText: { fontSize: 11, fontWeight: '700', color: '#0f766e' },
+  pendingBadge: { 
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#fefce8', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: '#fde047',
+    alignSelf: 'flex-start',
   },
-  billingToggleText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#64748b' },
-  billingToggleTextActive: { color: '#0f766e' },
-  billingPanelWrapper: {
-    marginTop: 8, padding: 14,
-    backgroundColor: '#fafafa', borderRadius: 12,
-    borderWidth: 1, borderColor: '#e2e8f0',
-  },
+  pendingBadgeText: { fontSize: 11, fontWeight: '700', color: '#92400e' },
+
+  waitTime: { fontSize: 11, color: '#94a3b8', marginBottom: 10, fontStyle: 'italic' },
 
   actions: { flexDirection: 'row', gap: 8 },
-  triageBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
-    backgroundColor: '#f5f3ff', borderWidth: 1, borderColor: '#ddd6fe',
+  viewTriageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#bbf7d0',
+    flex: 0.4,
   },
-  triagedBtnText: { fontSize: 13, fontWeight: '600', color: '#7c3aed' },
+  viewTriageBtnText: { fontSize: 11, fontWeight: '700', color: '#0f766e' },
+  updateTriageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: '#f5f3ff', borderWidth: 1.5, borderColor: '#ddd6fe',
+    flex: 0.4,
+  },
+  updateTriageBtnText: { fontSize: 11, fontWeight: '700', color: '#7c3aed' },
+  doTriageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: '#f5f3ff', borderWidth: 1.5, borderColor: '#ddd6fe',
+    flex: 0.5,
+  },
+  doTriageBtnText: { fontSize: 12, fontWeight: '700', color: '#7c3aed' },
   soapBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 10, borderRadius: 10, backgroundColor: '#0f766e',
   },
-  soapBtnSecondary: { backgroundColor: '#334155' },
-  soapBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  soapBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
   empty: { alignItems: 'center', paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#374151', marginTop: 16 },
