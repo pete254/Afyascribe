@@ -25,6 +25,7 @@ import TriageScreen from './src/screens/TriageScreen';
 import DischargeScreen from './src/screens/DischargeScreen';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import ReportsScreen from './src/screens/ReportsScreen';
+import PrescriptionScreen from './src/screens/PrescriptionScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -130,6 +131,7 @@ function MainApp() {
   const [soapVisit, setSoapVisit] = useState(null);
   const [viewTriageOnly, setViewTriageOnly] = useState(false);
   const [dischargeContext, setDischargeContext] = useState(null);
+  const [prescriptionContext, setPrescriptionContext] = useState(null);
 
   if (loading) {
     return (
@@ -243,7 +245,7 @@ function MainApp() {
   // ── Tab bar visibility ───────────────────────────────────────────────────────
   const hideTabBar = [
     'patient-history', 'onboard-patient', 'patient-directory',
-    'queue-patient', 'queue', 'my-queue', 'triage', 'reports', 'service-catalog', 'discharge'
+    'queue-patient', 'queue', 'my-queue', 'triage', 'reports', 'service-catalog', 'discharge', 'prescription'
   ].includes(activeScreen);
 
   // ── Screen renderer ──────────────────────────────────────────────────────────
@@ -351,11 +353,32 @@ function MainApp() {
           <DischargeScreen
             patient={dischargeContext?.patient}
             soapNoteId={dischargeContext?.soapNoteId}
+            diagnosis={dischargeContext?.diagnosis}
+            onWritePrescription={() => {
+              setPrescriptionContext(dischargeContext);
+              setActiveScreen('prescription');
+            }}
             onDischarge={({ scheduled }) => {
               setDischargeContext(null);
+              setPrescriptionContext(null);
               goToHome();
             }}
             onBack={() => setActiveScreen('transcription')}
+          />
+        );
+
+      case 'prescription':
+        return (
+          <PrescriptionScreen
+            patient={prescriptionContext?.patient}
+            soapNoteId={prescriptionContext?.soapNoteId}
+            diagnosis={prescriptionContext?.diagnosis}
+            onBack={() => setActiveScreen('discharge')}
+            onDone={() => {
+              setPrescriptionContext(null);
+              setDischargeContext(null);
+              goToHome();
+            }}
           />
         );
 

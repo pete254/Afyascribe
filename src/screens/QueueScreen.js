@@ -1,11 +1,13 @@
 // src/screens/QueueScreen.js
-// UPDATED: Partial payment, multi-method payments, persistent receipt, fixed reassign, receptionist triage
+// FIXED: keyboard management, safe area, M-Pesa placeholder, collect button always visible
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActivityIndicator, Alert, RefreshControl, Modal, Platform, TextInput, ScrollView,
+  ActivityIndicator, Alert, RefreshControl, Modal, Platform,
+  TextInput, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
 import { printReceipt } from '../utils/printReceipt';
@@ -21,6 +23,7 @@ const STATUS_COLOR = {
 
 export default function QueueScreen({ onBack, onTriagePatient }) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,7 +49,6 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
 
   const canReassign = ['receptionist', 'facility_admin', 'super_admin'].includes(user?.role);
   const canCancel = canReassign;
-  // Receptionist can also do triage (doubles as nurse)
   const canTriage = ['nurse', 'doctor', 'facility_admin', 'receptionist'].includes(user?.role);
   const canManageBilling = ['receptionist', 'facility_admin', 'super_admin'].includes(user?.role);
 
@@ -80,7 +82,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
       ]);
       setBillingData(prev => ({ ...prev, [visit.id]: { ...summary, bills } }));
       return { bills, summary };
-    } catch (e) { console.error('Failed to load bills:', e); return { bills: [], summary: null }; }
+    } catch (e) { return { bills: [], summary: null }; }
   };
 
   const loadDoctors = useCallback(async () => {
@@ -113,7 +115,6 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
     setCurrentBillId(null);
   };
 
-  // Select a specific bill to pay
   const selectBillToPay = (billId) => {
     setCurrentBillId(billId === currentBillId ? null : billId);
     setPaymentAmount('');
@@ -122,7 +123,10 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
   };
 
   const handleCollectPayment = async () => {
-    if (!currentBillId) { Alert.alert('Select Bill', 'Tap a bill row to select it for payment'); return; }
+    if (!currentBillId) {
+      Alert.alert('Select Bill', 'Tap a bill row to select it for payment');
+      return;
+    }
     const parsed = parseFloat(paymentAmount);
     if (!paymentAmount || isNaN(parsed) || parsed <= 0) {
       Alert.alert('Missing', 'Enter the amount being paid now');
@@ -147,11 +151,9 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
         mpesaReference: mpesaRef.trim() || undefined,
       });
 
-      // Refresh billing data
       const refreshed = await loadBillsForVisit(billingVisit);
       await loadQueue();
 
-      // Show receipt if bill is now fully paid or all bills cleared
       const allCleared = (refreshed.summary?.unpaid ?? 0) === 0;
       if (result.isFullyPaid || allCleared) {
         setReceiptData({
@@ -167,7 +169,6 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
       setPaymentAmount('');
       setMpesaRef('');
       setCurrentBillId(null);
-
       if (allCleared) setBillingModal(false);
     } catch (e) {
       Alert.alert('Payment Error', e.message || 'Failed to collect payment');
@@ -176,7 +177,6 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
     }
   };
 
-  // FIXED: Reassign uses correct endpoint
   const handleReassign = async (doctorId) => {
     if (!selectedVisit) return;
     setReassigning(true);
@@ -188,8 +188,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
       await loadQueue();
       Alert.alert('Reassigned', 'Patient has been reassigned successfully.');
     } catch (e) {
-      Alert.alert('Error', e.message || 'Failed to reassign. Please try again.');
-      console.error('Reassign error:', e);
+      Alert.alert('Error', e.message || 'Failed to reassign.');
     } finally {
       setReassigning(false);
     }
@@ -327,10 +326,250 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
     return <View style={styles.centered}><ActivityIndicator size="large" color="#0f766e" /></View>;
   }
 
+  // ── Billing modal content as its own component for keyboard avoidance ──────
+  const BillingModalContent = () => {
+    const data = billingData[billingVisit?.id];
+    const bills = data?.bills ?? [];
+    const summary = data;
+    const selectedBill = bills.find(b => b.id === currentBillId);
+    const remaining = selectedBill
+      ? Number(selectedBill.amount) - Number(selectedBill.amountPaid || 0)
+      : 0;
+
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <View style={[styles.modalSheet, { maxHeight: '92%', paddingBottom: insets.bottom + 8 }]}>
+          {/* Header */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              💰 {billingVisit?.patient?.firstName} {billingVisit?.patient?.lastName}
+            </Text>
+            <TouchableOpacity onPress={() => setBillingModal(false)}>
+              <Ionicons name="close" size={22} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Scrollable content */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 16 }}
+          >
+            {/* Summary bar */}
+            {summary && summary.total > 0 && (
+              <View style={styles.summaryBar}>
+                <View style={styles.summaryBarItem}>
+                  <Text style={styles.summaryBarLabel}>Total</Text>
+                  <Text style={styles.summaryBarValue}>KES {Number(summary.total || 0).toLocaleString()}</Text>
+                </View>
+                <View style={styles.summaryBarItem}>
+                  <Text style={[styles.summaryBarLabel, { color: '#166534' }]}>Collected</Text>
+                  <Text style={[styles.summaryBarValue, { color: '#166534' }]}>
+                    KES {Number(summary.amountPaid || 0).toLocaleString()}
+                  </Text>
+                </View>
+                <View style={styles.summaryBarItem}>
+                  <Text style={[styles.summaryBarLabel, { color: '#b45309' }]}>Balance</Text>
+                  <Text style={[styles.summaryBarValue, { color: '#b45309' }]}>
+                    KES {Number(summary.unpaid || 0).toFixed(0)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.payInstructions}>
+              Tap a bill below to select it, then enter the payment details.
+            </Text>
+
+            {/* Bills list */}
+            {bills.map((bill) => {
+              const rem = Number(bill.amount) - Number(bill.amountPaid || 0);
+              const isPaid = bill.status === 'paid' || bill.status === 'waived';
+              const isSelected = currentBillId === bill.id;
+              const isPartiallyPaid = !isPaid && Number(bill.amountPaid || 0) > 0;
+
+              return (
+                <TouchableOpacity
+                  key={bill.id}
+                  style={[
+                    styles.billRow,
+                    isSelected && styles.billRowSelected,
+                    isPaid && styles.billRowPaid,
+                  ]}
+                  onPress={() => !isPaid && selectBillToPay(bill.id)}
+                  activeOpacity={isPaid ? 1 : 0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.billService}>{bill.serviceDescription || bill.serviceType}</Text>
+                    <Text style={styles.billTotalAmt}>KES {Number(bill.amount).toLocaleString()}</Text>
+                    {isPartiallyPaid && (
+                      <View style={styles.partialPayInfo}>
+                        <Text style={styles.partialPaidText}>Paid: KES {Number(bill.amountPaid).toLocaleString()}</Text>
+                        <Text style={styles.partialRemText}>Balance: KES {rem.toFixed(0)}</Text>
+                      </View>
+                    )}
+                    {bill.paymentHistory?.length > 0 && (
+                      <View style={styles.paymentHistoryList}>
+                        {bill.paymentHistory.map((ph, idx) => (
+                          <Text key={idx} style={styles.paymentHistoryItem}>
+                            ✓ KES {Number(ph.amount).toLocaleString()} via {ph.paymentMethod === 'mpesa' ? 'M-Pesa' : ph.paymentMethod}
+                            {ph.mpesaReference ? ` (${ph.mpesaReference})` : ''}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
+                    {isPaid ? (
+                      <View style={styles.paidBadge}>
+                        <Ionicons name="checkmark-circle" size={14} color="#166534" />
+                        <Text style={styles.paidBadgeText}>
+                          {bill.status === 'waived' ? 'Waived' : 'Paid'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.pendingBadge, isSelected && styles.pendingBadgeSelected]}>
+                        <Text style={[styles.pendingBadgeText, isSelected && { color: '#1e40af' }]}>
+                          {isSelected ? '✓ Selected' : `KES ${rem.toFixed(0)} due`}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+
+            {bills.length === 0 && (
+              <Text style={styles.noBillsText}>No bills recorded for this visit.</Text>
+            )}
+
+            {/* Print receipt button — shown even before selecting a bill */}
+            {bills.some(b => Number(b.amountPaid || 0) > 0 || b.status === 'paid') && (
+              <TouchableOpacity
+                style={styles.printBtn}
+                onPress={() => {
+                  setReceiptData({
+                    patient: billingVisit?.patient,
+                    bills: bills,
+                    summary: summary,
+                    facility: { name: user?.facilityName || 'AfyaScribe Facility' },
+                    collectedBy: `${user?.firstName} ${user?.lastName}`,
+                  });
+                  setReceiptVisible(true);
+                }}
+              >
+                <MaterialCommunityIcons name="printer-outline" size={18} color="#0f766e" />
+                <Text style={styles.printBtnText}>Print Receipt</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+
+          {/* ── Payment form — FIXED OUTSIDE SCROLL so collect button is always visible ── */}
+          {currentBillId && selectedBill && (
+            <View style={styles.paymentFormFixed}>
+              <View style={styles.paymentFormHeader}>
+                <Text style={styles.paymentFormTitle} numberOfLines={1}>
+                  {selectedBill.serviceDescription || selectedBill.serviceType}
+                </Text>
+                <Text style={styles.paymentFormBalance}>Balance: KES {remaining.toFixed(0)}</Text>
+              </View>
+
+              {/* Payment method tabs */}
+              <View style={styles.payMethodRow}>
+                {[
+                  { value: 'cash', label: 'Cash', icon: 'cash' },
+                  { value: 'mpesa', label: 'M-Pesa', icon: 'cellphone' },
+                  { value: 'card', label: 'Card', icon: 'credit-card-outline' },
+                ].map((m) => (
+                  <TouchableOpacity
+                    key={m.value}
+                    style={[styles.payMethodBtn, paymentMethod === m.value && styles.payMethodBtnActive]}
+                    onPress={() => { setPaymentMethod(m.value); setMpesaRef(''); }}
+                  >
+                    <MaterialCommunityIcons
+                      name={m.icon}
+                      size={14}
+                      color={paymentMethod === m.value ? '#0f766e' : '#64748b'}
+                    />
+                    <Text style={[styles.payMethodText, paymentMethod === m.value && styles.payMethodTextActive]}>
+                      {m.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Quick amount buttons */}
+              <View style={styles.quickAmounts}>
+                {[remaining, Math.floor(remaining / 2)].filter(v => v > 0).map((amt, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[styles.quickAmtBtn, paymentAmount === String(Math.round(amt)) && styles.quickAmtBtnActive]}
+                    onPress={() => setPaymentAmount(String(Math.round(amt)))}
+                  >
+                    <Text style={[styles.quickAmtText, paymentAmount === String(Math.round(amt)) && { color: '#0f766e', fontWeight: '700' }]}>
+                      {idx === 0 ? 'Full' : 'Half'}{'\n'}KES {Math.round(amt).toLocaleString()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Amount input */}
+              <TextInput
+                style={styles.payInput}
+                placeholder={`Amount to collect (max KES ${remaining.toFixed(0)})`}
+                placeholderTextColor="#94a3b8"
+                value={paymentAmount}
+                onChangeText={setPaymentAmount}
+                keyboardType="numeric"
+                returnKeyType={paymentMethod === 'mpesa' ? 'next' : 'done'}
+              />
+
+              {/* M-Pesa reference — FIXED with proper placeholder */}
+              {paymentMethod === 'mpesa' && (
+                <TextInput
+                  style={styles.payInput}
+                  placeholder="M-Pesa confirmation code (e.g. QHX7Y3Z9AB)"
+                  placeholderTextColor="#94a3b8"
+                  value={mpesaRef}
+                  onChangeText={setMpesaRef}
+                  autoCapitalize="characters"
+                  returnKeyType="done"
+                />
+              )}
+
+              {/* Collect button — always visible in fixed footer */}
+              <TouchableOpacity
+                style={[styles.collectBtn, markingPaid && { opacity: 0.6 }]}
+                onPress={handleCollectPayment}
+                disabled={markingPaid}
+              >
+                {markingPaid ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="cash-check" size={18} color="#fff" />
+                    <Text style={styles.collectBtnText}>
+                      Collect {paymentAmount ? `KES ${Number(paymentAmount).toLocaleString()}` : '—'}{' '}
+                      via {paymentMethod === 'mpesa' ? 'M-Pesa' : paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
           <Ionicons name="arrow-back" size={20} color="#64748b" />
         </TouchableOpacity>
@@ -344,7 +583,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
         data={visits}
         keyExtractor={(item) => item.id}
         renderItem={renderVisit}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f766e" />}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -354,261 +593,29 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
         }
       />
 
-      {/* ── BILLING MODAL ────────────────────────────────────────────────────── */}
-      <Modal visible={billingModal} transparent animationType="slide">
+      {/* ── BILLING MODAL with KeyboardAvoidingView ── */}
+      <Modal visible={billingModal} transparent animationType="slide" onRequestClose={() => setBillingModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { maxHeight: '90%' }]} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                💰 {billingVisit?.patient?.firstName} {billingVisit?.patient?.lastName}
-              </Text>
-              <TouchableOpacity onPress={() => setBillingModal(false)}>
-                <Ionicons name="close" size={22} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {(() => {
-                const data = billingData[billingVisit?.id];
-                const bills = data?.bills ?? [];
-                const summary = data;
-
-                return (
-                  <>
-                    {/* Summary bar */}
-                    {summary && summary.total > 0 && (
-                      <View style={styles.summaryBar}>
-                        <View style={styles.summaryBarItem}>
-                          <Text style={styles.summaryBarLabel}>Total</Text>
-                          <Text style={styles.summaryBarValue}>KES {Number(summary.total || 0).toLocaleString()}</Text>
-                        </View>
-                        <View style={styles.summaryBarItem}>
-                          <Text style={[styles.summaryBarLabel, { color: '#166534' }]}>Collected</Text>
-                          <Text style={[styles.summaryBarValue, { color: '#166534' }]}>
-                            KES {Number(summary.amountPaid || 0).toLocaleString()}
-                          </Text>
-                        </View>
-                        <View style={styles.summaryBarItem}>
-                          <Text style={[styles.summaryBarLabel, { color: '#b45309' }]}>Balance</Text>
-                          <Text style={[styles.summaryBarValue, { color: '#b45309' }]}>
-                            KES {Number(summary.unpaid || 0).toFixed(0)}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-
-                    {/* Instructions */}
-                    <Text style={styles.payInstructions}>
-                      Tap a bill to select it, then enter the payment amount below.
-                    </Text>
-
-                    {/* Bills list */}
-                    {bills.map((bill) => {
-                      const remaining = Number(bill.amount) - Number(bill.amountPaid || 0);
-                      const isPaid = bill.status === 'paid' || bill.status === 'waived';
-                      const isSelected = currentBillId === bill.id;
-                      const isPartiallyPaid = !isPaid && Number(bill.amountPaid || 0) > 0;
-
-                      return (
-                        <TouchableOpacity
-                          key={bill.id}
-                          style={[
-                            styles.billRow,
-                            isSelected && styles.billRowSelected,
-                            isPaid && styles.billRowPaid,
-                          ]}
-                          onPress={() => !isPaid && selectBillToPay(bill.id)}
-                          activeOpacity={isPaid ? 1 : 0.7}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.billService}>{bill.serviceDescription || bill.serviceType}</Text>
-                            <Text style={styles.billTotalAmt}>KES {Number(bill.amount).toLocaleString()}</Text>
-
-                            {isPartiallyPaid && (
-                              <View style={styles.partialPayInfo}>
-                                <Text style={styles.partialPaidText}>
-                                  Paid: KES {Number(bill.amountPaid).toLocaleString()}
-                                </Text>
-                                <Text style={styles.partialRemText}>
-                                  Balance: KES {remaining.toFixed(0)}
-                                </Text>
-                              </View>
-                            )}
-
-                            {/* Payment history */}
-                            {bill.paymentHistory?.length > 0 && (
-                              <View style={styles.paymentHistoryList}>
-                                {bill.paymentHistory.map((ph, idx) => (
-                                  <Text key={idx} style={styles.paymentHistoryItem}>
-                                    ✓ KES {Number(ph.amount).toLocaleString()} via {ph.paymentMethod}
-                                    {ph.mpesaReference ? ` (${ph.mpesaReference})` : ''}
-                                  </Text>
-                                ))}
-                              </View>
-                            )}
-                          </View>
-
-                          <View style={{ alignItems: 'flex-end', minWidth: 80 }}>
-                            {isPaid ? (
-                              <View style={styles.paidBadge}>
-                                <Ionicons name="checkmark-circle" size={14} color="#166534" />
-                                <Text style={styles.paidBadgeText}>
-                                  {bill.status === 'waived' ? 'Waived' : 'Paid'}
-                                </Text>
-                              </View>
-                            ) : (
-                              <View style={[styles.pendingBadge, isSelected && styles.pendingBadgeSelected]}>
-                                <Text style={[styles.pendingBadgeText, isSelected && { color: '#1e40af' }]}>
-                                  {isSelected ? '✓ Selected' : `KES ${remaining.toFixed(0)} due`}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-
-                    {bills.length === 0 && (
-                      <Text style={styles.noBillsText}>No bills recorded for this visit.</Text>
-                    )}
-
-                    {/* Payment form — shown when a bill is selected */}
-                    {currentBillId && (() => {
-                      const selectedBill = bills.find(b => b.id === currentBillId);
-                      if (!selectedBill) return null;
-                      const remaining = Number(selectedBill.amount) - Number(selectedBill.amountPaid || 0);
-                      return (
-                        <View style={styles.paymentForm}>
-                          <Text style={styles.paymentFormTitle}>
-                            Collecting for: {selectedBill.serviceDescription || selectedBill.serviceType}
-                          </Text>
-                          <Text style={styles.paymentFormBalance}>
-                            Outstanding: KES {remaining.toFixed(0)}
-                          </Text>
-
-                          {/* Payment method */}
-                          <Text style={styles.payLabel}>Payment Method</Text>
-                          <View style={styles.payMethodRow}>
-                            {['cash', 'mpesa', 'card'].map((m) => (
-                              <TouchableOpacity
-                                key={m}
-                                style={[styles.payMethodBtn, paymentMethod === m && styles.payMethodBtnActive]}
-                                onPress={() => { setPaymentMethod(m); setMpesaRef(''); }}
-                              >
-                                <MaterialCommunityIcons
-                                  name={m === 'cash' ? 'cash' : m === 'mpesa' ? 'cellphone' : 'credit-card-outline'}
-                                  size={14} color={paymentMethod === m ? '#0f766e' : '#64748b'}
-                                />
-                                <Text style={[styles.payMethodText, paymentMethod === m && styles.payMethodTextActive]}>
-                                  {m === 'mpesa' ? 'M-Pesa' : m.charAt(0).toUpperCase() + m.slice(1)}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-
-                          {/* Quick amount buttons */}
-                          <Text style={styles.payLabel}>Amount Receiving Now</Text>
-                          <View style={styles.quickAmounts}>
-                            {[remaining, remaining / 2, remaining / 4].filter(v => v > 0 && Number.isInteger(v) || v === remaining).slice(0, 3).map((amt, idx) => (
-                              <TouchableOpacity
-                                key={idx}
-                                style={[styles.quickAmtBtn, paymentAmount === String(Math.round(amt)) && styles.quickAmtBtnActive]}
-                                onPress={() => setPaymentAmount(String(Math.round(amt)))}
-                              >
-                                <Text style={[styles.quickAmtText, paymentAmount === String(Math.round(amt)) && { color: '#0f766e', fontWeight: '700' }]}>
-                                  {idx === 0 ? 'Full' : idx === 1 ? 'Half' : 'Quarter'}{'\n'}
-                                  KES {Math.round(amt).toLocaleString()}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-
-                          <TextInput
-                            style={styles.payInput}
-                            placeholder={`Amount (max KES ${remaining.toFixed(0)})`}
-                            value={paymentAmount}
-                            onChangeText={setPaymentAmount}
-                            keyboardType="numeric"
-                            placeholderTextColor="#94a3b8"
-                          />
-
-                          {paymentMethod === 'mpesa' && (
-                            <TextInput
-                              style={styles.payInput}
-                              placeholder="M-Pesa reference (optional)"
-                              value={mpesaRef}
-                              onChangeText={setMpesaRef}
-                              autoCapitalize="characters"
-                              placeholderTextColor="#94a3b8"
-                            />
-                          )}
-
-                          <TouchableOpacity
-                            style={[styles.collectBtn, markingPaid && { opacity: 0.6 }]}
-                            onPress={handleCollectPayment}
-                            disabled={markingPaid}
-                          >
-                            {markingPaid ? (
-                              <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                              <>
-                                <MaterialCommunityIcons name="cash-check" size={18} color="#fff" />
-                                <Text style={styles.collectBtnText}>
-                                  Collect KES {paymentAmount ? Number(paymentAmount).toLocaleString() : '—'}
-                                </Text>
-                              </>
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    })()}
-
-                    {/* Print receipt button — always visible if any payments */}
-                    {bills.some(b => Number(b.amountPaid || 0) > 0 || b.status === 'paid') && (
-                      <TouchableOpacity
-                        style={styles.printBtn}
-                        onPress={() => {
-                          const data = billingData[billingVisit?.id];
-                          setReceiptData({
-                            patient: billingVisit?.patient,
-                            bills: data?.bills || [],
-                            summary: data,
-                            facility: { name: user?.facilityName || 'AfyaScribe Facility' },
-                            collectedBy: `${user?.firstName} ${user?.lastName}`,
-                          });
-                          setReceiptVisible(true);
-                        }}
-                      >
-                        <MaterialCommunityIcons name="printer-outline" size={18} color="#0f766e" />
-                        <Text style={styles.printBtnText}>Print Receipt</Text>
-                      </TouchableOpacity>
-                    )}
-                  </>
-                );
-              })()}
-            </ScrollView>
-          </View>
+          <BillingModalContent />
         </View>
       </Modal>
 
-      {/* ── RECEIPT MODAL (persistent — doesn't auto-close) ─────────────────── */}
-      <Modal visible={receiptVisible} transparent animationType="fade">
+      {/* ── RECEIPT MODAL ── */}
+      <Modal visible={receiptVisible} transparent animationType="fade" onRequestClose={() => setReceiptVisible(false)}>
         <View style={styles.receiptOverlay}>
-          <View style={styles.receiptCard}>
+          <View style={[styles.receiptCard, { paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.receiptHeader}>
               <MaterialCommunityIcons name="receipt" size={24} color="#0f766e" />
               <Text style={styles.receiptTitle}>Payment Receipt</Text>
             </View>
 
             {receiptData && (
-              <View style={styles.receiptBody}>
+              <ScrollView style={styles.receiptBody} showsVerticalScrollIndicator={false}>
                 <Text style={styles.receiptPatient}>
                   {receiptData.patient?.firstName} {receiptData.patient?.lastName}
                 </Text>
                 <Text style={styles.receiptPatientId}>{receiptData.patient?.patientId}</Text>
-
                 <View style={styles.receiptDivider} />
-
                 {receiptData.bills?.map((bill, idx) => (
                   <View key={idx} style={styles.receiptBillRow}>
                     <Text style={styles.receiptBillName} numberOfLines={1}>
@@ -624,18 +631,14 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
                     </View>
                   </View>
                 ))}
-
                 <View style={styles.receiptDivider} />
-
                 <View style={styles.receiptTotals}>
                   <View style={styles.receiptTotalRow}>
                     <Text style={styles.receiptTotalLabel}>Total Billed</Text>
-                    <Text style={styles.receiptTotalVal}>
-                      KES {Number(receiptData.summary?.total || 0).toLocaleString()}
-                    </Text>
+                    <Text style={styles.receiptTotalVal}>KES {Number(receiptData.summary?.total || 0).toLocaleString()}</Text>
                   </View>
                   <View style={styles.receiptTotalRow}>
-                    <Text style={[styles.receiptTotalLabel, { color: '#166534' }]}>Amount Collected</Text>
+                    <Text style={[styles.receiptTotalLabel, { color: '#166534' }]}>Collected</Text>
                     <Text style={[styles.receiptTotalVal, { color: '#166534' }]}>
                       KES {Number(receiptData.summary?.amountPaid || 0).toLocaleString()}
                     </Text>
@@ -649,23 +652,18 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
                     </View>
                   )}
                 </View>
-              </View>
+              </ScrollView>
             )}
 
             <View style={styles.receiptActions}>
               <TouchableOpacity
                 style={styles.receiptPrintBtn}
-                onPress={async () => {
-                  if (receiptData) await printReceipt(receiptData);
-                }}
+                onPress={async () => { if (receiptData) await printReceipt(receiptData); }}
               >
                 <MaterialCommunityIcons name="printer" size={18} color="#fff" />
                 <Text style={styles.receiptPrintBtnText}>Print</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.receiptCloseBtn}
-                onPress={() => setReceiptVisible(false)}
-              >
+              <TouchableOpacity style={styles.receiptCloseBtn} onPress={() => setReceiptVisible(false)}>
                 <Text style={styles.receiptCloseBtnText}>Close</Text>
               </TouchableOpacity>
             </View>
@@ -673,10 +671,10 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
         </View>
       </Modal>
 
-      {/* ── REASSIGN MODAL (FIXED — with search & scrollable list) ────────────── */}
-      <Modal visible={reassignModal} transparent animationType="slide">
+      {/* ── REASSIGN MODAL ── */}
+      <Modal visible={reassignModal} transparent animationType="slide" onRequestClose={() => { setReassignModal(false); setSelectedVisit(null); }}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { maxHeight: '70%' }]} onStartShouldSetResponder={() => true}>
+          <View style={[styles.modalSheet, { maxHeight: '70%', paddingBottom: insets.bottom + 12 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reassign Doctor</Text>
               <TouchableOpacity onPress={() => { setReassignModal(false); setSelectedVisit(null); setDoctorSearch(''); }}>
@@ -693,7 +691,6 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
               </View>
             )}
 
-            {/* Doctor search */}
             <View style={styles.doctorSearchBox}>
               <Ionicons name="search" size={16} color="#94a3b8" style={{ marginRight: 8 }} />
               <TextInput
@@ -711,39 +708,32 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
             </View>
 
             <ScrollView style={{ maxHeight: 350 }} keyboardShouldPersistTaps="handled">
-              {filteredDoctors.length === 0 ? (
-                <View style={{ padding: 30, alignItems: 'center' }}>
-                  <Text style={styles.emptyText}>
-                    {doctorSearch ? 'No doctors match your search' : 'No doctors found'}
-                  </Text>
-                </View>
-              ) : (
-                filteredDoctors.map((doc) => (
-                  <TouchableOpacity
-                    key={doc.id}
-                    style={[
-                      styles.modalOption,
-                      selectedVisit?.assignedDoctorId === doc.id && styles.currentDoctorOption,
-                    ]}
-                    onPress={() => handleReassign(doc.id)}
-                    disabled={reassigning}
-                  >
-                    <View style={styles.doctorAvatar}>
-                      <Text style={styles.doctorAvatarText}>{doc.firstName[0]}{doc.lastName[0]}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.modalOptionText}>Dr. {doc.firstName} {doc.lastName}</Text>
-                      {selectedVisit?.assignedDoctorId === doc.id && (
-                        <Text style={styles.currentDoctorLabel}>Currently assigned</Text>
-                      )}
-                    </View>
-                    {reassigning ? (
-                      <ActivityIndicator size="small" color="#0f766e" />
-                    ) : (
-                      <Ionicons name="arrow-forward" size={18} color="#0f766e" />
+              {filteredDoctors.map((doc) => (
+                <TouchableOpacity
+                  key={doc.id}
+                  style={[styles.modalOption, selectedVisit?.assignedDoctorId === doc.id && styles.currentDoctorOption]}
+                  onPress={() => handleReassign(doc.id)}
+                  disabled={reassigning}
+                >
+                  <View style={styles.doctorAvatar}>
+                    <Text style={styles.doctorAvatarText}>{doc.firstName[0]}{doc.lastName[0]}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalOptionText}>Dr. {doc.firstName} {doc.lastName}</Text>
+                    {selectedVisit?.assignedDoctorId === doc.id && (
+                      <Text style={styles.currentDoctorLabel}>Currently assigned</Text>
                     )}
-                  </TouchableOpacity>
-                ))
+                  </View>
+                  {reassigning
+                    ? <ActivityIndicator size="small" color="#0f766e" />
+                    : <Ionicons name="arrow-forward" size={18} color="#0f766e" />
+                  }
+                </TouchableOpacity>
+              ))}
+              {filteredDoctors.length === 0 && (
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <Text style={styles.emptyText}>No doctors found</Text>
+                </View>
               )}
             </ScrollView>
           </View>
@@ -758,7 +748,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 16,
+    paddingHorizontal: 16,
     paddingBottom: 12, backgroundColor: '#fff',
     borderBottomWidth: 1, borderBottomColor: '#e2e8f0', gap: 12,
   },
@@ -770,10 +760,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff', borderRadius: 12, padding: 14,
     borderWidth: 1, borderColor: '#e2e8f0',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 },
-      android: { elevation: 2 },
-    }),
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
   cardWithUnpaidBill: { borderColor: '#fde68a', borderWidth: 1.5 },
   cardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
@@ -805,37 +792,20 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 28,
+    padding: 20,
   },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', flex: 1, marginRight: 12 },
   modalOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', gap: 12 },
   currentDoctorOption: { backgroundColor: '#f0fdf4' },
   currentDoctorLabel: { fontSize: 11, color: '#0f766e', fontWeight: '600', marginTop: 2 },
   modalOptionText: { fontSize: 15, color: '#0f172a', flex: 1 },
 
-  // Doctor search
-  doctorSearchBox: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc',
-    borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
-    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
-  },
-  doctorSearchInput: { flex: 1, fontSize: 15, color: '#0f172a' },
-  doctorAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#ccfbf1', alignItems: 'center', justifyContent: 'center' },
-  doctorAvatarText: { fontSize: 13, fontWeight: '700', color: '#065f46' },
-
-  reassignPatientPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f0fdf4', borderRadius: 8, padding: 10,
-    borderWidth: 1, borderColor: '#bbf7d0', marginBottom: 12,
-  },
-  reassignPatientName: { fontSize: 14, fontWeight: '600', color: '#166534' },
-
-  // Billing modal
+  // Billing modal styles
   summaryBar: {
     flexDirection: 'row', backgroundColor: '#f8fafc',
-    borderRadius: 10, padding: 12, marginBottom: 14,
-    borderWidth: 1, borderColor: '#e2e8f0', gap: 4,
+    borderRadius: 10, padding: 12, marginBottom: 12,
+    borderWidth: 1, borderColor: '#e2e8f0',
   },
   summaryBarItem: { flex: 1, alignItems: 'center' },
   summaryBarLabel: { fontSize: 11, color: '#64748b', fontWeight: '600', marginBottom: 4 },
@@ -863,47 +833,81 @@ const styles = StyleSheet.create({
   pendingBadgeText: { fontSize: 11, fontWeight: '700', color: '#b45309' },
   noBillsText: { color: '#94a3b8', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
 
-  // Payment form
-  paymentForm: { backgroundColor: '#f0f9ff', borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1.5, borderColor: '#93c5fd' },
-  paymentFormTitle: { fontSize: 13, fontWeight: '700', color: '#1e40af', marginBottom: 2 },
-  paymentFormBalance: { fontSize: 13, color: '#b45309', fontWeight: '600', marginBottom: 12 },
-  payLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8 },
-  payMethodRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  payMethodBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#fff' },
+  printBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#f0fdf4', borderRadius: 10, paddingVertical: 12,
+    marginTop: 8, borderWidth: 1.5, borderColor: '#bbf7d0',
+  },
+  printBtnText: { fontSize: 14, fontWeight: '600', color: '#0f766e' },
+
+  // Fixed payment form at bottom of billing modal
+  paymentFormFixed: {
+    borderTopWidth: 1.5, borderTopColor: '#e2e8f0',
+    paddingTop: 14, marginTop: 4,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    padding: 14,
+    marginHorizontal: 0,
+  },
+  paymentFormHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 10,
+  },
+  paymentFormTitle: { fontSize: 13, fontWeight: '700', color: '#1e40af', flex: 1, marginRight: 8 },
+  paymentFormBalance: { fontSize: 13, color: '#b45309', fontWeight: '700' },
+  payMethodRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  payMethodBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: 9, borderRadius: 8, borderWidth: 1.5, borderColor: '#e2e8f0', backgroundColor: '#fff',
+  },
   payMethodBtnActive: { borderColor: '#0f766e', backgroundColor: '#f0fdf9' },
   payMethodText: { fontSize: 12, color: '#64748b', fontWeight: '500' },
   payMethodTextActive: { color: '#0f766e', fontWeight: '700' },
   quickAmounts: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  quickAmtBtn: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', padding: 8, alignItems: 'center' },
+  quickAmtBtn: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 8,
+    borderWidth: 1, borderColor: '#e2e8f0', padding: 8, alignItems: 'center',
+  },
   quickAmtBtnActive: { borderColor: '#0f766e', backgroundColor: '#f0fdf9' },
-  quickAmtText: { fontSize: 11, color: '#64748b', textAlign: 'center' },
+  quickAmtText: { fontSize: 11, color: '#64748b', textAlign: 'center', lineHeight: 16 },
   payInput: {
     borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
-    color: '#1e293b', marginBottom: 8, backgroundColor: '#fff',
+    paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 11 : 9,
+    fontSize: 14, color: '#1e293b', marginBottom: 8, backgroundColor: '#fff',
   },
   collectBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#0f766e', borderRadius: 10, paddingVertical: 14,
+    marginTop: 4,
   },
   collectBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-  printBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#f0fdf4', borderRadius: 10, paddingVertical: 12,
-    marginTop: 12, borderWidth: 1.5, borderColor: '#bbf7d0',
+  // Doctor search
+  doctorSearchBox: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc',
+    borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
+    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
   },
-  printBtnText: { fontSize: 14, fontWeight: '600', color: '#0f766e' },
+  doctorSearchInput: { flex: 1, fontSize: 15, color: '#0f172a' },
+  doctorAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#ccfbf1', alignItems: 'center', justifyContent: 'center' },
+  doctorAvatarText: { fontSize: 13, fontWeight: '700', color: '#065f46' },
+  reassignPatientPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#f0fdf4', borderRadius: 8, padding: 10,
+    borderWidth: 1, borderColor: '#bbf7d0', marginBottom: 12,
+  },
+  reassignPatientName: { fontSize: 14, fontWeight: '600', color: '#166534' },
 
   // Receipt modal
   receiptOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   receiptCard: {
     backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 380,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 10,
+    maxHeight: '85%',
   },
   receiptHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   receiptTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
-  receiptBody: {},
+  receiptBody: { flexShrink: 1 },
   receiptPatient: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   receiptPatientId: { fontSize: 13, color: '#94a3b8', marginTop: 2, marginBottom: 12 },
   receiptDivider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 12 },
@@ -916,7 +920,7 @@ const styles = StyleSheet.create({
   receiptTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   receiptTotalLabel: { fontSize: 14, color: '#475569', fontWeight: '500' },
   receiptTotalVal: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
-  receiptActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  receiptActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   receiptPrintBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: '#0f766e', borderRadius: 12, paddingVertical: 14,

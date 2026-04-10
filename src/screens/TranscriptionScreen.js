@@ -460,9 +460,13 @@ export default function TranscriptionScreen({
         await uploadPendingDocs(selectedPatient.id, result.id);
       }
 
-      // Call the callback with patient and soapNoteId
+      // Call the callback with patient, soapNoteId, and diagnosis
       if (onSoapNoteSaved) {
-        onSoapNoteSaved({ patient: selectedPatient, soapNoteId: result?.id });
+        onSoapNoteSaved({
+          patient: selectedPatient,
+          soapNoteId: result?.id,
+          diagnosis: diagnosis.trim() || undefined,
+        });
       }
 
       Alert.alert('Success', 'SOAP note saved successfully!', [
