@@ -90,6 +90,33 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ── CREATE CLINIC (clinic owner setup) ────────────────────────────────────
+
+  const createClinic = async (clinicData) => {
+    try {
+      setLoading(true);
+      // clinicData: { email, password, firstName, lastName, facilityName, facilityCode, clinicMode }
+      const response = await apiService.createClinic(clinicData);
+
+      await storage.setToken(response.access_token);
+      await storage.setUser(response.user);
+
+      setUser(response.user);
+      setIsAuthenticated(true);
+
+      // response.inviteCode is available if you want to show it immediately after setup
+      return { success: true, user: response.user, inviteCode: response.inviteCode };
+    } catch (error) {
+      console.error('Create clinic error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to create clinic. Please try again.',
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ── LOGOUT ─────────────────────────────────────────────────────────────────
 
   const logout = async () => {
@@ -114,6 +141,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     login,
     registerWithInviteCode,
+    createClinic,
     logout,
     refreshAuth: checkAuthStatus,
   };

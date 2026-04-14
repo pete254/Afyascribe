@@ -18,6 +18,8 @@ import AuthScreen from './src/screens/AuthScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import RegisterFacilityScreen from './src/screens/RegisterFacilityScreen';
+import CreateClinicScreen from './src/screens/CreateClinicScreen';
+import OwnerCardScreen from './src/screens/OwnerCardScreen';
 import QueuePatientScreen from './src/screens/QueuePatientScreen';
 import QueueScreen from './src/screens/QueueScreen';
 import MyQueueScreen from './src/screens/MyQueueScreen';
@@ -150,6 +152,7 @@ function MainApp() {
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
           <Stack.Screen name="RegisterFacility" component={RegisterFacilityScreen} />
+          <Stack.Screen name="CreateClinic" component={CreateClinicScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     );
@@ -245,7 +248,7 @@ function MainApp() {
   // ── Tab bar visibility ───────────────────────────────────────────────────────
   const hideTabBar = [
     'patient-history', 'onboard-patient', 'patient-directory',
-    'queue-patient', 'queue', 'my-queue', 'triage', 'reports', 'service-catalog', 'discharge', 'prescription'
+    'queue-patient', 'queue', 'my-queue', 'triage', 'reports', 'service-catalog', 'discharge', 'prescription', 'owner-card'
   ].includes(activeScreen);
 
   // ── Screen renderer ──────────────────────────────────────────────────────────
@@ -264,6 +267,7 @@ function MainApp() {
             onViewTriageQueue={() => goToTriage(null)}
             onViewReports={goToReports}
             onViewServiceCatalog={goToServiceCatalog}
+            onViewOwnerCard={() => setActiveScreen('owner-card')}
           />
         );
 
@@ -347,6 +351,9 @@ function MainApp() {
 
       case 'reports':
         return <ReportsScreen onBack={goBack} />;
+
+      case 'owner-card':
+        return <OwnerCardScreen onBack={goBack} />;
 
       case 'discharge':
         return (

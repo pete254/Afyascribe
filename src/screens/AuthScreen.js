@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/apiService';
 
@@ -213,10 +213,19 @@ export default function AuthScreen({ navigation }) {
 
               <TouchableOpacity
                 style={styles.facilityButton}
+                onPress={() => navigation.navigate('CreateClinic')}
+              >
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#0f766e" />
+                <Text style={styles.facilityButtonText}>Start Your Clinic</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.facilityButton, { marginTop: 8, borderColor: '#e2e8f0' }]}
                 onPress={() => navigation.navigate('RegisterFacility')}
               >
-                <Ionicons name="business-outline" size={18} color="#0f766e" />
-                <Text style={styles.facilityButtonText}>Register Your Facility</Text>
+                <MaterialCommunityIcons name="email-outline" size={18} color="#64748b" />
+                <Text style={[styles.facilityButtonText, { color: '#64748b' }]}>
+                  Large facility? Contact us
+                </Text>
               </TouchableOpacity>
             </View>
           )}

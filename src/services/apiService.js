@@ -109,6 +109,18 @@ class ApiService {
     });
   }
 
+  async createClinic(clinicData) {
+    const data = await this.request('/auth/create-clinic', {
+      method: 'POST',
+      body: JSON.stringify(clinicData),
+    });
+    if (data.access_token) {
+      await storage.saveToken(data.access_token);
+      await storage.saveUser(data.user);
+    }
+    return data;
+  }
+
   // ==================== FACILITY ADMIN ENDPOINTS ====================
 
   async getMyInviteCode() {
