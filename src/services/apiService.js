@@ -157,6 +157,15 @@ class ApiService {
     });
   }
 
+  /**
+   * Get all doctors in the facility.
+   * Uses a dedicated endpoint accessible to ALL staff roles (not just owners).
+   * Safe to call from queue, triage, and SOAP note screens.
+   */
+  async getFacilityDoctors() {
+    return await this.request('/facility/users/doctors');
+  }
+
   // ==================== PATIENT ENDPOINTS ====================
 
   async createPatient(patientData) {
@@ -273,10 +282,6 @@ class ApiService {
 
   // ==================== PATIENT VISITS ENDPOINTS ====================
 
-  /**
-   * Check in a patient and assign to a doctor.
-   * Role: receptionist, facility_admin
-   */
   async checkInPatient(patientId, reasonForVisit, assignedDoctorId) {
     return await this.request('/patient-visits/check-in', {
       method: 'POST',
@@ -284,34 +289,18 @@ class ApiService {
     });
   }
 
-  /**
-   * Get today's full active queue for the facility.
-   * Role: all staff
-   */
   async getActiveQueue() {
     return await this.request('/patient-visits/queue');
   }
 
-  /**
-   * Get the current doctor's personal queue.
-   * Role: doctor
-   */
   async getMyQueue() {
     return await this.request('/patient-visits/my-queue');
   }
 
-  /**
-   * Get queue stats for home screen counters.
-   * Role: all staff
-   */
   async getQueueStats() {
     return await this.request('/patient-visits/stats');
   }
 
-  /**
-   * Submit triage vitals for a visit.
-   * Role: nurse, doctor
-   */
   async submitTriage(visitId, triageData) {
     return await this.request(`/patient-visits/${visitId}/triage`, {
       method: 'PATCH',
@@ -319,10 +308,6 @@ class ApiService {
     });
   }
 
-  /**
-   * Reassign a visit to a different doctor.
-   * Role: receptionist, facility_admin
-   */
   async reassignVisit(visitId, assignedDoctorId) {
     return await this.request(`/patient-visits/${visitId}/reassign`, {
       method: 'PATCH',
@@ -330,429 +315,30 @@ class ApiService {
     });
   }
 
-  /**
-   * Mark patient as currently with doctor (called when doctor opens visit).
-   * Role: doctor
-   */
   async markWithDoctor(visitId) {
     return await this.request(`/patient-visits/${visitId}/with-doctor`, {
       method: 'PATCH',
     });
   }
 
-  /**
-   * Mark visit as completed.
-   * Role: doctor, nurse
-   */
   async completeVisit(visitId) {
     return await this.request(`/patient-visits/${visitId}/complete`, {
       method: 'PATCH',
     });
   }
 
-  /**
-   * Cancel a visit (no-show / patient left).
-   * Role: receptionist, facility_admin
-   */
   async cancelVisit(visitId) {
     return await this.request(`/patient-visits/${visitId}/cancel`, {
       method: 'PATCH',
     });
   }
 
-  /**
-   * Get a single visit by ID.
-   */
   async getVisit(visitId) {
     return await this.request(`/patient-visits/${visitId}`);
   }
 
-  /**
-   * Get facility doctors list (for assignment dropdown).
-   */
-  async getFacilityDoctors() {
-    const staff = await this.getFacilityStaff();
-    return staff.filter(u => u.role === 'doctor');
-  }
-
   // ==================== BILLING ENDPOINTS ====================
 
-  /**
-   * Create a bill for a visit.
-   * Role: receptionist, facility_admin
-   */
-  async createBill(visitId, serviceType, serviceDescription, amount) {
-    return await this.request('/billing', {
-      method: 'POST',
-      body: JSON.stringify({ visitId, serviceType, serviceDescription, amount }),
-    });
-  }
-
-  /**
-   * Get all bills for a specific visit.
-   */
-  async getVisitBills(visitId) {
-    return await this.request(`/billing/visit/${visitId}`);
-  }
-
-  /**
-   * Get billing summary (total / paid / unpaid) for a visit.
-   */
-  async getVisitBillingSummary(visitId) {
-    return await this.request(`/billing/visit/${visitId}/summary`);
-  }
-
-  /**
-   * Mark a bill as paid. Automatically advances visit to waiting queue
-   * when all bills for the visit are cleared.
-   * Role: receptionist, facility_admin
-   */
-    async markBillPaid(billId, paymentData) {
-      return await this.request(`/billing/${billId}/pay`, {
-        method: 'PATCH',
-        body: JSON.stringify(paymentData),
-        // paymentData: { paymentMethod, amountReceived, mpesaReference? }
-      });
-    }
-
-  /**
-   * Waive a bill (admin only).
-   */
-  async waiveBill(billId, waiverReason) {
-    return await this.request(`/billing/${billId}/waive`, {
-      method: 'PATCH',
-      body: JSON.stringify({ waiverReason }),
-    });
-  }
-
-  /**
-   * Get today's unpaid bills for the facility.
-   * Role: receptionist, facility_admin
-   */
-  async getUnpaidBillsToday() {
-    return await this.request('/billing/unpaid-today');
-  }
-
-  // ==================== DRAFT SOAP NOTE ENDPOINTS ====================
-
-  /**
-   * Create a new draft. All SOAP fields are optional.
-   * Returns the saved draft with its id.
-   */
-  async createDraft(patientId, fields = {}) {
-    return await this.request('/soap-notes/draft', {
-      method: 'POST',
-      body: JSON.stringify({ patientId, ...fields }),
-    });
-  }
-
-  /**
-   * Update an existing draft by id.
-   */
-  async updateDraft(draftId, patientId, fields = {}) {
-    return await this.request(`/soap-notes/draft/${draftId}`, {
-      method: 'POST',
-      body: JSON.stringify({ patientId, ...fields }),
-    });
-  }
-
-  /**
-   * Get all drafts for the current user.
-   */
-  async getMyDrafts() {
-    return await this.request('/soap-notes/drafts');
-  }
-
-  /**
-   * Finalise a draft — saves it as a completed SOAP note (status: pending).
-   */
-  async finaliseDraft(draftId, patientId, fields = {}) {
-    return await this.request(`/soap-notes/draft/${draftId}/finalise`, {
-      method: 'POST',
-      body: JSON.stringify({ patientId, ...fields }),
-    });
-  }
-
-  // ==================== INSURANCE SCHEMES ENDPOINTS ====================
-
-async getInsuranceSchemes() {
-  return await this.request('/insurance-schemes');
-}
-
-async createInsuranceScheme(data) {
-  return await this.request('/insurance-schemes', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-
-async updateInsuranceScheme(id, data) {
-  return await this.request(`/insurance-schemes/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  });
-}
-
-async deleteInsuranceScheme(id) {
-  return await this.request(`/insurance-schemes/${id}`, {
-    method: 'DELETE',
-  });
-}
-
-// ==================== PATIENT DOCUMENTS ENDPOINTS ====================
-
-/**
- * Get all documents for a patient
- */
-async getPatientDocuments(patientId) {
-  return await this.request(`/patient-documents/patient/${patientId}`);
-}
-
-/**
- * Upload a document (image or PDF) for a patient
- * pendingFile: { uri, name, type, size, base64 }
- */
-async uploadPatientDocument(patientId, pendingFile, category, notes) {
-  const token = await storage.getToken();
-
-  const formData = new FormData();
-  formData.append('patientId', patientId);
-  formData.append('category', category || 'other');
-  if (notes) formData.append('notes', notes);
-
-  // Append the file
-  formData.append('file', {
-    uri: pendingFile.uri,
-    name: pendingFile.name,
-    type: pendingFile.type,
-  });
-
-  const url = `${this.baseURL}/patient-documents/upload`;
-  console.log(`🌐 Uploading document to: ${url}`);
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-    body: formData,
-  });
-
-  const contentType = response.headers.get('content-type');
-  let data;
-  if (contentType && contentType.includes('application/json')) {
-    data = await response.json();
-  } else {
-    data = await response.text();
-  }
-
-  if (!response.ok) {
-    const errorMessage = data?.message || data?.error || data || 'Upload failed';
-    console.error(`❌ Upload Error:`, errorMessage);
-    throw new Error(errorMessage);
-  }
-
-  console.log('✅ Document upload successful');
-  return data;
-}
-
-/**
- * Delete a patient document
- */
-async deletePatientDocument(documentId) {
-  return await this.request(`/patient-documents/${documentId}`, {
-    method: 'DELETE',
-  });
-}
-
-// ==================== REPORTS ENDPOINTS ====================
-
-async getReportsPatientsToday() {
-  return await this.request('/reports/patients-today');
-}
-
-async getFinancialReport(from, to) {
-  const params = new URLSearchParams();
-  if (from) params.append('from', from);
-  if (to) params.append('to', to);
-  return await this.request(`/reports/financials?${params.toString()}`);
-}
-
-async getInsuranceClaimsReport(from, to, scheme) {
-  const params = new URLSearchParams();
-  if (from) params.append('from', from);
-  if (to) params.append('to', to);
-  if (scheme) params.append('scheme', scheme);
-  return await this.request(`/reports/insurance-claims?${params.toString()}`);
-}
-
-// Returns the CSV download URL (opened via Linking or expo-sharing)
-getInsuranceClaimsExportUrl(from, to, scheme) {
-  const BASE = 'https://afyascribe-backend.onrender.com';
-  const params = new URLSearchParams();
-  if (from) params.append('from', from);
-  if (to) params.append('to', to);
-  if (scheme) params.append('scheme', scheme);
-  return `${BASE}/reports/insurance-claims/export?${params.toString()}`;
-}
-
-  /**
-   * Delete a draft permanently.
-   */
-  async deleteDraft(draftId) {
-    return await this.request(`/soap-notes/draft/${draftId}`, {
-      method: 'DELETE',
-    });
-  }
-
-   // ── Shared multipart upload helper ────────────────────────────────────────
-  async _uploadDocument(endpoint, fileObj, extraFields = {}) {
-    const storage = require('../utils/storage').default;
-    const token = await storage.getToken();
- 
-    const formData = new FormData();
- 
-    // Append extra fields
-    Object.entries(extraFields).forEach(([key, val]) => {
-      if (val !== undefined && val !== null) formData.append(key, String(val));
-    });
- 
-    // Append file
-    formData.append('file', {
-      uri: fileObj.uri,
-      name: fileObj.name,
-      type: fileObj.type,
-    });
- 
-    const url = `${this.baseURL}${endpoint}`;
-    console.log(`🌐 Uploading document to: ${url}`);
- 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-      body: formData,
-    });
- 
-    const contentType = response.headers.get('content-type');
-    const data = contentType?.includes('application/json')
-      ? await response.json()
-      : await response.text();
- 
-    if (!response.ok) {
-      throw new Error(data?.message || data?.error || data || 'Upload failed');
-    }
- 
-    console.log('✅ Document upload successful');
-    return data;
-  }
- 
-  // ── PATIENT-LEVEL document (onboarding) ───────────────────────────────────
-  async uploadPatientLevelDocument(patientId, fileObj) {
-    return this._uploadDocument('/patient-documents/patient', fileObj, {
-      patientId,
-      documentName: fileObj.documentName,
-      category:     fileObj.category || 'other',
-      notes:        fileObj.notes,
-    });
-  }
- 
-  // ── SOAP NOTE-LEVEL document ───────────────────────────────────────────────
-  async uploadSoapNoteDocument(patientId, soapNoteId, fileObj) {
-    return this._uploadDocument('/patient-documents/soap-note', fileObj, {
-      patientId,
-      soapNoteId,
-      documentName: fileObj.documentName,
-      category:     fileObj.category || 'other',
-      notes:        fileObj.notes,
-    });
-  }
- 
-  // ── GET: patient-level docs ────────────────────────────────────────────────
-  async getPatientLevelDocs(patientId) {
-    return this.request(`/patient-documents/patient/${patientId}`);
-  }
- 
-  // ── GET: docs for a specific SOAP note ────────────────────────────────────
-  async getSoapNoteDocs(soapNoteId) {
-    return this.request(`/patient-documents/soap-note/${soapNoteId}`);
-  }
- 
-  // ── GET: ALL docs for a patient (both scopes) ─────────────────────────────
-  async getAllPatientDocs(patientId) {
-    return this.request(`/patient-documents/patient/${patientId}/all`);
-  }
- 
-  // ── DELETE a document ──────────────────────────────────────────────────────
-  async deletePatientDocument(documentId) {
-    return this.request(`/patient-documents/${documentId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // ==================== SERVICE CATALOG ENDPOINTS ====================
-  
-  /**
-   * Get all active services in the facility's catalog.
-   * Pass showAll=true to include inactive items (admin only).
-   */
-  async getServiceCatalog(showAll = false) {
-    const q = showAll ? '?all=true' : '';
-    return await this.request(`/service-catalog${q}`);
-  }
-  
-  /**
-   * Seed the catalog with common hospital services.
-   * Safe to call multiple times — won't create duplicates.
-   * Role: facility_admin
-   */
-  async seedDefaultServices() {
-    return await this.request('/service-catalog/seed-defaults', {
-      method: 'POST',
-    });
-  }
-  
-  /**
-   * Add a new service to the catalog.
-   * Role: facility_admin
-   * data: { name, description?, defaultPrice, category, sortOrder? }
-   */
-  async createServiceCatalogItem(data) {
-    return await this.request('/service-catalog', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-  
-  /**
-   * Update a catalog service (name, price, active status, etc.)
-   * Role: facility_admin
-   */
-  async updateServiceCatalogItem(id, data) {
-    return await this.request(`/service-catalog/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-  
-  /**
-   * Remove a service from the catalog.
-   * Role: facility_admin
-   */
-  async deleteServiceCatalogItem(id) {
-    return await this.request(`/service-catalog/${id}`, {
-      method: 'DELETE',
-    });
-  }
-  
-  // ==================== BILLING UPDATES ====================
-  
-  /**
-   * Create a bill — UPDATED signature supports catalogItemId
-   * paymentMode defaults to 'cash' (receptionist adjusts at checkout)
-   */
   async createBill(
     visitId,
     serviceType,
@@ -775,34 +361,308 @@ getInsuranceClaimsExportUrl(from, to, scheme) {
       }),
     });
   }
-  
-  /**
-   * Update an unpaid bill (amount and/or description).
-   * Only unpaid bills can be edited.
-   */
+
+  async getVisitBills(visitId) {
+    return await this.request(`/billing/visit/${visitId}`);
+  }
+
+  async getVisitBillingSummary(visitId) {
+    return await this.request(`/billing/visit/${visitId}/summary`);
+  }
+
+  async markBillPaid(billId, paymentData) {
+    return await this.request(`/billing/${billId}/pay`, {
+      method: 'PATCH',
+      body: JSON.stringify(paymentData),
+    });
+  }
+
+  async waiveBill(billId, waiverReason) {
+    return await this.request(`/billing/${billId}/waive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ waiverReason }),
+    });
+  }
+
+  async getUnpaidBillsToday() {
+    return await this.request('/billing/unpaid-today');
+  }
+
   async updateBill(billId, data) {
-    // data: { amount?, serviceDescription? }
     return await this.request(`/billing/${billId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
-  
-  /**
-   * Delete an unpaid bill from a visit.
-   * Only unpaid bills can be deleted.
-   */
+
   async deleteBill(billId) {
     return await this.request(`/billing/${billId}`, {
       method: 'DELETE',
     });
   }
 
-  
+  // ==================== DRAFT SOAP NOTE ENDPOINTS ====================
+
+  async createDraft(patientId, fields = {}) {
+    return await this.request('/soap-notes/draft', {
+      method: 'POST',
+      body: JSON.stringify({ patientId, ...fields }),
+    });
+  }
+
+  async updateDraft(draftId, patientId, fields = {}) {
+    return await this.request(`/soap-notes/draft/${draftId}`, {
+      method: 'POST',
+      body: JSON.stringify({ patientId, ...fields }),
+    });
+  }
+
+  async getMyDrafts() {
+    return await this.request('/soap-notes/drafts');
+  }
+
+  async finaliseDraft(draftId, patientId, fields = {}) {
+    return await this.request(`/soap-notes/draft/${draftId}/finalise`, {
+      method: 'POST',
+      body: JSON.stringify({ patientId, ...fields }),
+    });
+  }
+
+  async deleteDraft(draftId) {
+    return await this.request(`/soap-notes/draft/${draftId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getDraftForPatient(patientId) {
-  const drafts = await this.getMyDrafts();
-  return drafts.find(d => d.patientId === patientId || d.patient?.id === patientId) || null;
-}
+    const drafts = await this.getMyDrafts();
+    return drafts.find(d => d.patientId === patientId || d.patient?.id === patientId) || null;
+  }
+
+  // ==================== INSURANCE SCHEMES ENDPOINTS ====================
+
+  async getInsuranceSchemes() {
+    return await this.request('/insurance-schemes');
+  }
+
+  async createInsuranceScheme(data) {
+    return await this.request('/insurance-schemes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateInsuranceScheme(id, data) {
+    return await this.request(`/insurance-schemes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteInsuranceScheme(id) {
+    return await this.request(`/insurance-schemes/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== PATIENT DOCUMENTS ENDPOINTS ====================
+
+  async getPatientDocuments(patientId) {
+    return await this.request(`/patient-documents/patient/${patientId}`);
+  }
+
+  async uploadPatientDocument(patientId, pendingFile, category, notes) {
+    const token = await storage.getToken();
+
+    const formData = new FormData();
+    formData.append('patientId', patientId);
+    formData.append('category', category || 'other');
+    if (notes) formData.append('notes', notes);
+
+    formData.append('file', {
+      uri: pendingFile.uri,
+      name: pendingFile.name,
+      type: pendingFile.type,
+    });
+
+    const url = `${this.baseURL}/patient-documents/upload`;
+    console.log(`🌐 Uploading document to: ${url}`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    const contentType = response.headers.get('content-type');
+    let data;
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+
+    if (!response.ok) {
+      const errorMessage = data?.message || data?.error || data || 'Upload failed';
+      console.error(`❌ Upload Error:`, errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    console.log('✅ Document upload successful');
+    return data;
+  }
+
+  async deletePatientDocument(documentId) {
+    return await this.request(`/patient-documents/${documentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ── Shared multipart upload helper ────────────────────────────────────────
+  async _uploadDocument(endpoint, fileObj, extraFields = {}) {
+    const token = await storage.getToken();
+
+    const formData = new FormData();
+
+    Object.entries(extraFields).forEach(([key, val]) => {
+      if (val !== undefined && val !== null) formData.append(key, String(val));
+    });
+
+    formData.append('file', {
+      uri: fileObj.uri,
+      name: fileObj.name,
+      type: fileObj.type,
+    });
+
+    const url = `${this.baseURL}${endpoint}`;
+    console.log(`🌐 Uploading document to: ${url}`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      },
+      body: formData,
+    });
+
+    const contentType = response.headers.get('content-type');
+    const data = contentType?.includes('application/json')
+      ? await response.json()
+      : await response.text();
+
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || data || 'Upload failed');
+    }
+
+    console.log('✅ Document upload successful');
+    return data;
+  }
+
+  async uploadPatientLevelDocument(patientId, fileObj) {
+    return this._uploadDocument('/patient-documents/patient', fileObj, {
+      patientId,
+      documentName: fileObj.documentName,
+      category:     fileObj.category || 'other',
+      notes:        fileObj.notes,
+    });
+  }
+
+  async uploadSoapNoteDocument(patientId, soapNoteId, fileObj) {
+    return this._uploadDocument('/patient-documents/soap-note', fileObj, {
+      patientId,
+      soapNoteId,
+      documentName: fileObj.documentName,
+      category:     fileObj.category || 'other',
+      notes:        fileObj.notes,
+    });
+  }
+
+  async getPatientLevelDocs(patientId) {
+    return this.request(`/patient-documents/patient/${patientId}`);
+  }
+
+  async getSoapNoteDocs(soapNoteId) {
+    return this.request(`/patient-documents/soap-note/${soapNoteId}`);
+  }
+
+  async getAllPatientDocs(patientId) {
+    return this.request(`/patient-documents/patient/${patientId}/all`);
+  }
+
+  // ==================== REPORTS ENDPOINTS ====================
+
+  async getReportsPatientsToday() {
+    return await this.request('/reports/patients-today');
+  }
+
+  async getFinancialReport(from, to) {
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+    return await this.request(`/reports/financials?${params.toString()}`);
+  }
+
+  async getInsuranceClaimsReport(from, to, scheme) {
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+    if (scheme) params.append('scheme', scheme);
+    return await this.request(`/reports/insurance-claims?${params.toString()}`);
+  }
+
+  getInsuranceClaimsExportUrl(from, to, scheme) {
+    const BASE = 'https://afyascribe-backend.onrender.com';
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+    if (scheme) params.append('scheme', scheme);
+    return `${BASE}/reports/insurance-claims/export?${params.toString()}`;
+  }
+
+  // ==================== SERVICE CATALOG ENDPOINTS ====================
+
+  async getServiceCatalog(showAll = false) {
+    const q = showAll ? '?all=true' : '';
+    return await this.request(`/service-catalog${q}`);
+  }
+
+  async seedDefaultServices() {
+    return await this.request('/service-catalog/seed-defaults', {
+      method: 'POST',
+    });
+  }
+
+  async createServiceCatalogItem(data) {
+    return await this.request('/service-catalog', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateServiceCatalogItem(id, data) {
+    return await this.request(`/service-catalog/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteServiceCatalogItem(id) {
+    return await this.request(`/service-catalog/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== RECEIPTS ====================
+
+  async getPaidBills(from, to) {
+    const params = new URLSearchParams();
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+    return await this.request(`/billing/paid?${params.toString()}`);
+  }
 
   // ==================== APPOINTMENTS ENDPOINTS ====================
 

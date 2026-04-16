@@ -85,8 +85,9 @@ export function canCollectPayment(user) {
   if (!user) return false;
   if (isClinicOwner(user)) return true;
   if (user.role === 'receptionist') return true;
-  // Doctors handle their own billing in solo/team clinics
-  if (user.role === 'doctor' && isSoloOrTeam(user)) return true;
+  if (user.role === 'nurse') return true;
+ 
+  if (user.role === 'doctor') return true;
   return false;
 }
 

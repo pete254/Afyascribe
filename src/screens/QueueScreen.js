@@ -386,7 +386,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
   const canReassign = ['receptionist', 'facility_admin', 'super_admin'].includes(user?.role);
   const canCancel = canReassign;
   const canTriage = ['nurse', 'doctor', 'facility_admin', 'receptionist'].includes(user?.role);
-  const canManageBilling = ['receptionist', 'facility_admin', 'super_admin'].includes(user?.role);
+  const canManageBilling = ['receptionist', 'facility_admin', 'super_admin', 'nurse', 'doctor'].includes(user?.role);
 
   const loadQueue = useCallback(async () => {
     try {

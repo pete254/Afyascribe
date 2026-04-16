@@ -80,7 +80,7 @@ export default function HomeScreen({
       <View style={styles.greetingSection}>
         <View style={styles.greetingBadge}>
           <MaterialCommunityIcons name="hospital-box-outline" size={14} color="#0f766e" />
-          <Text style={styles.greetingBadgeText}>AfyaScribe</Text>
+          <Text style={styles.greetingBadgeText}>{user?.facilityName || 'AfyaScribe'}</Text>
           {user?.clinicMode && (
             <Text style={styles.modeBadgeText}> · {getClinicModeLabel(user)}</Text>
           )}
