@@ -1,6 +1,6 @@
 // src/context/AuthContext.js
-// UPDATED: user now carries facilityId, facilityCode, facilityName
-// Added registerWithInviteCode() for the new staff onboarding flow
+// UPDATED: isOwner and clinicMode are now always stored in AsyncStorage
+// so capabilities are correct after logout + re-login (not just first login).
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import apiService from '../services/apiService';
 import storage from '../utils/storage';
@@ -44,14 +44,21 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       const response = await apiService.login(email, password);
 
-      // response.user now includes facilityId, facilityCode, facilityName
-      await storage.setToken(response.access_token);
-      await storage.setUser(response.user);
+      // response.user now always includes isOwner and clinicMode from the server
+      const userToStore = {
+        ...response.user,
+        // Defensive: ensure these fields always exist so capabilities.js works
+        isOwner:    response.user.isOwner    ?? false,
+        clinicMode: response.user.clinicMode ?? null,
+      };
 
-      setUser(response.user);
+      await storage.setToken(response.access_token);
+      await storage.setUser(userToStore);
+
+      setUser(userToStore);
       setIsAuthenticated(true);
 
-      return { success: true, user: response.user };
+      return { success: true, user: userToStore };
     } catch (error) {
       console.error('Login error:', error);
       return {
@@ -68,17 +75,21 @@ export const AuthProvider = ({ children }) => {
   const registerWithInviteCode = async (userData) => {
     try {
       setLoading(true);
-      // userData = { inviteCode, email, password, firstName, lastName, role }
       const response = await apiService.registerWithInviteCode(userData);
 
-      // Backend returns JWT + user immediately after registration
-      await storage.setToken(response.access_token);
-      await storage.setUser(response.user);
+      const userToStore = {
+        ...response.user,
+        isOwner:    response.user.isOwner    ?? false,
+        clinicMode: response.user.clinicMode ?? null,
+      };
 
-      setUser(response.user);
+      await storage.setToken(response.access_token);
+      await storage.setUser(userToStore);
+
+      setUser(userToStore);
       setIsAuthenticated(true);
 
-      return { success: true, user: response.user };
+      return { success: true, user: userToStore };
     } catch (error) {
       console.error('Registration error:', error);
       return {
@@ -95,17 +106,22 @@ export const AuthProvider = ({ children }) => {
   const createClinic = async (clinicData) => {
     try {
       setLoading(true);
-      // clinicData: { email, password, firstName, lastName, facilityName, facilityCode, clinicMode }
       const response = await apiService.createClinic(clinicData);
 
-      await storage.setToken(response.access_token);
-      await storage.setUser(response.user);
+      // Owner always gets isOwner: true
+      const userToStore = {
+        ...response.user,
+        isOwner:    response.user.isOwner    ?? true,
+        clinicMode: response.user.clinicMode ?? clinicData.clinicMode ?? null,
+      };
 
-      setUser(response.user);
+      await storage.setToken(response.access_token);
+      await storage.setUser(userToStore);
+
+      setUser(userToStore);
       setIsAuthenticated(true);
 
-      // response.inviteCode is available if you want to show it immediately after setup
-      return { success: true, user: response.user, inviteCode: response.inviteCode };
+      return { success: true, user: userToStore, inviteCode: response.inviteCode };
     } catch (error) {
       console.error('Create clinic error:', error);
       return {
@@ -136,7 +152,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = {
-    user,          // { id, email, firstName, lastName, role, facilityId, facilityCode, facilityName }
+    user,          // { id, email, firstName, lastName, role, facilityId, facilityCode, facilityName, isOwner, clinicMode }
     loading,
     isAuthenticated,
     login,
