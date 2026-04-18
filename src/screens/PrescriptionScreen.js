@@ -20,6 +20,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { printPrescription } from '../utils/printPrescription';
+import BluetoothPrinterManager from '../components/BluetoothPrinterManager';
 
 // ── Common medication frequencies ────────────────────────────────────────────
 const FREQUENCIES = [
@@ -289,6 +290,7 @@ export default function PrescriptionScreen({
   const [notes, setNotes] = useState('');
   const [printing, setPrinting] = useState(false);
   const [drugPickerVisible, setDrugPickerVisible] = useState(false);
+  const [printerModalVisible, setPrinterModalVisible] = useState(false);
 
   const addBlankMedication = () => {
     setMedications(prev => [...prev, {
@@ -358,8 +360,9 @@ export default function PrescriptionScreen({
           name: user?.facilityName || 'AfyaScribe Facility',
           phone: user?.facilityPhone || '',
           address: user?.facilityAddress || '',
+          logoUrl: user?.facilityLogoUrl || null,
         },
-      });
+      }, { onNeedPrinterSetup: () => setPrinterModalVisible(true) });
     } catch (e) {
       Alert.alert('Error', 'Failed to generate prescription.');
     } finally {
@@ -509,6 +512,13 @@ export default function PrescriptionScreen({
         visible={drugPickerVisible}
         onSelect={handleSelectDrug}
         onClose={() => setDrugPickerVisible(false)}
+      />
+
+      {/* Bluetooth Printer Manager */}
+      <BluetoothPrinterManager
+        visible={printerModalVisible}
+        onClose={() => setPrinterModalVisible(false)}
+        onPrinterSelected={() => setPrinterModalVisible(false)}
       />
     </View>
   );

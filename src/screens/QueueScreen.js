@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
 import { printReceipt } from '../utils/printReceipt';
+import BluetoothPrinterManager from '../components/BluetoothPrinterManager';
 
 const STATUS_COLOR = {
   checked_in:         { bg: '#fef9c3', text: '#854d0e', label: 'Checked In' },
@@ -383,6 +384,9 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
   const [reassigning, setReassigning] = useState(false);
   const [doctorSearch, setDoctorSearch] = useState('');
 
+  // Printer setup modal
+  const [printerModalVisible, setPrinterModalVisible] = useState(false);
+
   const canReassign = ['receptionist', 'facility_admin', 'super_admin'].includes(user?.role);
   const canCancel = canReassign;
   const canTriage = ['nurse', 'doctor', 'facility_admin', 'receptionist'].includes(user?.role);
@@ -459,7 +463,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
         patient: billingVisit?.patient,
         bills: refreshed.bills,
         summary: refreshed.summary,
-        facility: { name: user?.facilityName || 'AfyaScribe Facility' },
+        facility: { name: user?.facilityName || 'AfyaScribe Facility', logoUrl: user?.facilityLogoUrl || null },
         collectedBy: `${user?.firstName} ${user?.lastName}`,
       });
       setReceiptVisible(true);
@@ -472,7 +476,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
       patient: billingVisit?.patient,
       bills,
       summary,
-      facility: { name: user?.facilityName || 'AfyaScribe Facility' },
+      facility: { name: user?.facilityName || 'AfyaScribe Facility', logoUrl: user?.facilityLogoUrl || null },
       collectedBy: `${user?.firstName} ${user?.lastName}`,
     });
     setReceiptVisible(true);
@@ -724,7 +728,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
             <View style={styles.receiptActions}>
               <TouchableOpacity
                 style={styles.receiptPrintBtn}
-                onPress={async () => { if (receiptData) await printReceipt(receiptData); }}
+                onPress={async () => { if (receiptData) await printReceipt(receiptData, { onNeedPrinterSetup: () => setPrinterModalVisible(true) }); }}
               >
                 <MaterialCommunityIcons name="printer" size={18} color="#fff" />
                 <Text style={styles.receiptPrintBtnText}>Print</Text>
@@ -805,6 +809,13 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
           </View>
         </View>
       </Modal>
+
+      {/* Bluetooth Printer Manager */}
+      <BluetoothPrinterManager
+        visible={printerModalVisible}
+        onClose={() => setPrinterModalVisible(false)}
+        onPrinterSelected={() => setPrinterModalVisible(false)}
+      />
     </View>
   );
 }

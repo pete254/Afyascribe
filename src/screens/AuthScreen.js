@@ -12,6 +12,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
@@ -130,7 +131,10 @@ export default function AuthScreen({ navigation }) {
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.logo}>🏥</Text>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.logoImage}
+            />
             <Text style={styles.title}>AfyaScribe</Text>
             <Text style={styles.subtitle}>
               {mode === 'login' && 'Sign in to your account'}
@@ -361,6 +365,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center', padding: 24 },
   header: { alignItems: 'center', marginBottom: 32 },
   logo: { fontSize: 64, marginBottom: 12 },
+  logoImage: { width: 80, height: 80, marginBottom: 12, borderRadius: 16 },
   title: { fontSize: 30, fontWeight: '800', color: '#0f172a', marginBottom: 6 },
   subtitle: { fontSize: 15, color: '#64748b', textAlign: 'center' },
   form: {

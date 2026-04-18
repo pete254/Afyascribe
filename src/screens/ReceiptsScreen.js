@@ -9,6 +9,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { printReceipt } from '../utils/printReceipt';
 import apiService from '../services/apiService';
+import BluetoothPrinterManager from '../components/BluetoothPrinterManager';
 
 const PERIODS = [
   { label: 'Today', getValue: () => { const d = fmt(new Date()); return { from: d, to: d }; } },
@@ -28,6 +29,7 @@ export default function ReceiptsScreen({ onBack }) {
   const [printing, setPrinting] = useState(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewData, setPreviewData] = useState(null);
+  const [printerModalVisible, setPrinterModalVisible] = useState(false);
 
   // Group bills by visit (patient)
   const [groupedReceipts, setGroupedReceipts] = useState([]);
@@ -92,9 +94,9 @@ export default function ReceiptsScreen({ onBack }) {
         patient: receipt.patient,
         bills: receipt.bills,
         summary,
-        facility: { name: user?.facilityName || 'AfyaScribe Facility' },
+        facility: { name: user?.facilityName || 'AfyaScribe Facility', logoUrl: user?.facilityLogoUrl || null },
         collectedBy: `${user?.firstName} ${user?.lastName}`,
-      });
+      }, { onNeedPrinterSetup: () => setPrinterModalVisible(true) });
     } catch (e) {
       console.error('Print failed:', e);
     } finally {
@@ -113,7 +115,7 @@ export default function ReceiptsScreen({ onBack }) {
       patient: receipt.patient,
       bills: receipt.bills,
       summary,
-      facility: { name: user?.facilityName || 'AfyaScribe Facility' },
+      facility: { name: user?.facilityName || 'AfyaScribe Facility', logoUrl: user?.facilityLogoUrl || null },
       collectedBy: `${user?.firstName} ${user?.lastName}`,
       paidAt: receipt.paidAt,
     });
@@ -366,7 +368,7 @@ export default function ReceiptsScreen({ onBack }) {
                 onPress={async () => {
                   if (previewData) {
                     setPreviewVisible(false);
-                    await printReceipt(previewData);
+                    await printReceipt(previewData, { onNeedPrinterSetup: () => setPrinterModalVisible(true) });
                   }
                 }}
               >
@@ -380,6 +382,13 @@ export default function ReceiptsScreen({ onBack }) {
           </View>
         </View>
       </Modal>
+
+      {/* Bluetooth Printer Manager */}
+      <BluetoothPrinterManager
+        visible={printerModalVisible}
+        onClose={() => setPrinterModalVisible(false)}
+        onPrinterSelected={() => setPrinterModalVisible(false)}
+      />
     </View>
   );
 }

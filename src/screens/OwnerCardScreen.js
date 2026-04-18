@@ -4,8 +4,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, Alert, Share, Platform, RefreshControl,
+  ActivityIndicator, Alert, Share, Platform, RefreshControl, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import apiService from '../services/apiService';
@@ -17,12 +18,13 @@ const MODES = [
 ];
 
 export default function OwnerCardScreen({ onBack }) {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [inviteCode, setInviteCode] = useState(null);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -102,6 +104,54 @@ export default function OwnerCardScreen({ onBack }) {
     );
   };
 
+  const handlePickLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Photo library access is required');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    setLogoUploading(true);
+    try {
+      const data = await apiService.uploadFacilityLogo({
+        uri: asset.uri,
+        name: `logo_${Date.now()}.jpg`,
+        type: 'image/jpeg',
+      });
+      updateUser({ facilityLogoUrl: data.logoUrl });
+      Alert.alert('✅ Logo Updated', 'Your clinic logo has been saved.');
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to upload logo');
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    Alert.alert('Remove Logo', 'Remove your clinic logo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await apiService.removeFacilityLogo();
+            updateUser({ facilityLogoUrl: null });
+          } catch (e) {
+            Alert.alert('Error', e.message);
+          }
+        },
+      },
+    ]);
+  };
+
   const daysLeft = inviteCode?.expiresAt
     ? Math.max(0, Math.ceil((new Date(inviteCode.expiresAt) - Date.now()) / (1000 * 60 * 60 * 24)))
     : null;
@@ -135,6 +185,50 @@ export default function OwnerCardScreen({ onBack }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f766e" />}
           showsVerticalScrollIndicator={false}
         >
+          {/* Clinic Logo */}
+          <View style={[styles.sectionCard, { alignItems: 'center', paddingVertical: 24 }]}>
+            <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Clinic Logo</Text>
+            {user?.facilityLogoUrl ? (
+              <Image
+                source={{ uri: user.facilityLogoUrl }}
+                style={{ width: 100, height: 100, borderRadius: 16, marginBottom: 16 }}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={{
+                width: 100, height: 100, borderRadius: 16, backgroundColor: '#f0fdf4',
+                alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+                borderWidth: 2, borderColor: '#bbf7d0', borderStyle: 'dashed',
+              }}>
+                <MaterialCommunityIcons name="hospital-building" size={40} color="#0f766e" />
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={[styles.shareBtn, { flex: 1 }]}
+                onPress={handlePickLogo}
+                disabled={logoUploading}
+              >
+                {logoUploading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <><MaterialCommunityIcons name="camera-outline" size={16} color="#fff" />
+                      <Text style={styles.shareBtnText}>
+                        {user?.facilityLogoUrl ? 'Change Logo' : 'Upload Logo'}
+                      </Text></>
+                }
+              </TouchableOpacity>
+              {user?.facilityLogoUrl && (
+                <TouchableOpacity style={styles.regenBtn} onPress={handleRemoveLogo}>
+                  <MaterialCommunityIcons name="trash-can-outline" size={16} color="#dc2626" />
+                  <Text style={[styles.regenBtnText, { color: '#dc2626' }]}>Remove</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={[styles.codeHint, { marginTop: 10, marginBottom: 0 }]}>
+              Appears on receipts, prescriptions, and emails
+            </Text>
+          </View>
+
           {/* Invite Code */}
           <View style={styles.codeCard}>
             <View style={styles.codeCardHeader}>

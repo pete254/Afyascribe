@@ -48,8 +48,9 @@ export const AuthProvider = ({ children }) => {
       const userToStore = {
         ...response.user,
         // Defensive: ensure these fields always exist so capabilities.js works
-        isOwner:    response.user.isOwner    ?? false,
-        clinicMode: response.user.clinicMode ?? null,
+        isOwner:         response.user.isOwner         ?? false,
+        clinicMode:      response.user.clinicMode      ?? null,
+        facilityLogoUrl: response.user.facilityLogoUrl ?? null,
       };
 
       await storage.setToken(response.access_token);
@@ -79,8 +80,9 @@ export const AuthProvider = ({ children }) => {
 
       const userToStore = {
         ...response.user,
-        isOwner:    response.user.isOwner    ?? false,
-        clinicMode: response.user.clinicMode ?? null,
+        isOwner:         response.user.isOwner         ?? false,
+        clinicMode:      response.user.clinicMode      ?? null,
+        facilityLogoUrl: response.user.facilityLogoUrl ?? null,
       };
 
       await storage.setToken(response.access_token);
@@ -111,8 +113,9 @@ export const AuthProvider = ({ children }) => {
       // Owner always gets isOwner: true
       const userToStore = {
         ...response.user,
-        isOwner:    response.user.isOwner    ?? true,
-        clinicMode: response.user.clinicMode ?? clinicData.clinicMode ?? null,
+        isOwner:         response.user.isOwner         ?? true,
+        clinicMode:      response.user.clinicMode      ?? clinicData.clinicMode ?? null,
+        facilityLogoUrl: response.user.facilityLogoUrl ?? null,
       };
 
       await storage.setToken(response.access_token);
@@ -151,14 +154,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ── UPDATE USER ────────────────────────────────────────────────────────────
+
+  const updateUser = (updates) => {
+    setUser(prev => {
+      const updated = { ...prev, ...updates };
+      storage.setUser(updated);
+      return updated;
+    });
+  };
+
   const value = {
-    user,          // { id, email, firstName, lastName, role, facilityId, facilityCode, facilityName, isOwner, clinicMode }
+    user,          // { id, email, firstName, lastName, role, facilityId, facilityCode, facilityName, isOwner, clinicMode, facilityLogoUrl }
     loading,
     isAuthenticated,
     login,
     registerWithInviteCode,
     createClinic,
     logout,
+    updateUser,
     refreshAuth: checkAuthStatus,
   };
 

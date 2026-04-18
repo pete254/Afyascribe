@@ -166,6 +166,34 @@ class ApiService {
     return await this.request('/facility/users/doctors');
   }
 
+  // ==================== FACILITY LOGO ENDPOINTS ====================
+
+  async uploadFacilityLogo(fileObj) {
+    const token = await storage.getToken();
+    const formData = new FormData();
+    formData.append('file', {
+      uri: fileObj.uri,
+      name: fileObj.name || 'logo.jpg',
+      type: fileObj.type || 'image/jpeg',
+    });
+    const response = await fetch(`${this.baseURL}/facilities/logo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.message || 'Logo upload failed');
+    return data;
+  }
+
+  async removeFacilityLogo() {
+    return this.request('/facilities/logo', { method: 'DELETE' });
+  }
+
+  async getFacilityDetails(facilityId) {
+    return this.request(`/facilities/${facilityId}`);
+  }
+
   // ==================== PATIENT ENDPOINTS ====================
 
   async createPatient(patientData) {

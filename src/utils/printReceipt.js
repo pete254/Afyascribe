@@ -1,13 +1,19 @@
 // src/utils/printReceipt.js
-// Generates a receipt PDF and shares/prints it
-// Uses expo-print (already in managed workflow) + expo-sharing
+// UPDATED: Bluetooth ESC/POS thermal printing + PDF fallback
+// Shows print method selector (Bluetooth / PDF) before printing
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform, Alert } from 'react-native';
+import {
+  buildReceiptEscPos,
+  printViaBluetooth,
+  getSavedPrinterDevice,
+  isBluetoothPrintingAvailable,
+} from './thermalPrinter';
 
 /**
- * Generate HTML receipt
+ * Generate HTML receipt (for PDF fallback)
  */
 function buildReceiptHtml({ patient, visit, bills, summary, facility, collectedBy }) {
   const now = new Date().toLocaleString('en-KE', {
@@ -46,7 +52,7 @@ function buildReceiptHtml({ patient, visit, bills, summary, facility, collectedB
   }).join('');
 
   const total = summary?.total || 0;
-  const paid = summary?.paid || 0;
+  const paid = summary?.paid || summary?.amountPaid || 0;
   const unpaid = summary?.unpaid || 0;
 
   return `
@@ -83,112 +89,182 @@ function buildReceiptHtml({ patient, visit, bills, summary, facility, collectedB
 </head>
 <body>
 <div class="page">
-
-  <!-- HEADER -->
   <div class="header">
     <div class="facility-name">🏥 ${facilityName}</div>
     ${facilityAddress ? `<div class="facility-sub">${facilityAddress}</div>` : ''}
     ${facilityPhone ? `<div class="facility-sub">Tel: ${facilityPhone}</div>` : ''}
     <div><span class="receipt-badge">Official Receipt</span></div>
   </div>
-
-  <!-- RECEIPT META -->
   <div class="section">
     <div class="info-grid">
       <div class="info-item"><div class="lbl">Receipt No.</div><div class="val">${receiptNo}</div></div>
       <div class="info-item"><div class="lbl">Date &amp; Time</div><div class="val">${now}</div></div>
     </div>
   </div>
-
-  <!-- PATIENT INFO -->
   <div class="section">
     <div class="section-label">Patient Details</div>
     <div class="info-grid">
       <div class="info-item"><div class="lbl">Name</div><div class="val">${patientName}</div></div>
-      <div class="info-item"><div class="lbl">Patient ID</div><div class="val">${patientId}</div></div>
+      ${patientId ? `<div class="info-item"><div class="lbl">Patient ID</div><div class="val">${patientId}</div></div>` : ''}
       ${membershipNo ? `<div class="info-item"><div class="lbl">Membership No.</div><div class="val">${membershipNo}</div></div>` : ''}
       ${collectedBy ? `<div class="info-item"><div class="lbl">Cashier</div><div class="val">${collectedBy}</div></div>` : ''}
     </div>
   </div>
-
-  <!-- BILLS TABLE -->
   <div class="section">
     <div class="section-label">Services</div>
     <table>
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th style="text-align:center;">Status</th>
-          <th style="text-align:right;">Amount</th>
-        </tr>
-      </thead>
+      <thead><tr><th>Description</th><th style="text-align:center;">Status</th><th style="text-align:right;">Amount</th></tr></thead>
       <tbody>${billRows}</tbody>
     </table>
   </div>
-
-  <!-- TOTALS -->
   <div class="totals">
     <div class="total-row"><span>Subtotal</span><span>KES ${total.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span></div>
     <div class="total-row"><span>Paid</span><span style="color:#166534;font-weight:600;">KES ${paid.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span></div>
     ${unpaid > 0 ? `<div class="total-row unpaid"><span>Outstanding</span><span>KES ${unpaid.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span></div>` : ''}
     <div class="total-row grand"><span>TOTAL BILLED</span><span>KES ${total.toLocaleString('en-KE', { minimumFractionDigits: 2 })}</span></div>
   </div>
-
-  <!-- FOOTER -->
   <div class="footer">
     <div class="thank-you">Thank You!</div>
     <p>Please keep this receipt for your records.</p>
     <p>Powered by AfyaScribe EMR</p>
   </div>
-
 </div>
 </body>
 </html>`;
 }
 
 /**
- * Print or share a receipt
- * @param {object} data - { patient, visit, bills, summary, facility, collectedBy }
+ * Print via PDF (share sheet)
  */
-export async function printReceipt(data) {
+async function printAsPdf(data) {
+  const html = buildReceiptHtml(data);
+
+  if (Platform.OS === 'web') {
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+    w.print();
+    return;
+  }
+
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(uri, {
+      mimeType: 'application/pdf',
+      dialogTitle: 'Receipt',
+      UTI: 'com.adobe.pdf',
+    });
+  } else {
+    await Print.printAsync({ uri });
+  }
+}
+
+/**
+ * Print via Bluetooth thermal printer
+ */
+async function printAsThermal(data, printerDevice) {
+  const escPosText = buildReceiptEscPos(data);
+  await printViaBluetooth(escPosText, printerDevice);
+}
+
+/**
+ * Main print receipt function
+ * Shows a chooser: Bluetooth thermal or PDF
+ * @param {object} data - { patient, visit, bills, summary, facility, collectedBy }
+ * @param {object} options - { onNeedPrinterSetup: fn } callback if no printer saved
+ */
+export async function printReceipt(data, options = {}) {
   try {
-    const html = buildReceiptHtml(data);
+    const bluetoothAvailable = isBluetoothPrintingAvailable();
+    const savedPrinter = await getSavedPrinterDevice();
 
-    if (Platform.OS === 'web') {
-      // Web: open print dialog
-      const w = window.open('', '_blank');
-      w.document.write(html);
-      w.document.close();
-      w.print();
-      return;
-    }
-
-    // Generate PDF
-    const { uri } = await Print.printToFileAsync({ html, base64: false });
-
-    // Check if sharing is available
-    const canShare = await Sharing.isAvailableAsync();
-
-    if (canShare) {
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Receipt',
-        UTI: 'com.adobe.pdf',
+    // If Bluetooth is available and we have a saved printer, offer choice
+    if (bluetoothAvailable && savedPrinter) {
+      return new Promise((resolve) => {
+        Alert.alert(
+          'Print Receipt',
+          `Choose print method:`,
+          [
+            {
+              text: `🖨️ Thermal (${savedPrinter.name || savedPrinter.address})`,
+              onPress: async () => {
+                try {
+                  await printAsThermal(data, savedPrinter);
+                  resolve({ success: true, method: 'bluetooth' });
+                } catch (e) {
+                  Alert.alert(
+                    'Bluetooth Print Failed',
+                    `${e.message}\n\nFall back to PDF?`,
+                    [
+                      { text: 'Yes, PDF', onPress: async () => { await printAsPdf(data); resolve({ success: true, method: 'pdf' }); } },
+                      { text: 'Cancel', style: 'cancel', onPress: () => resolve({ success: false }) },
+                    ]
+                  );
+                }
+              },
+            },
+            {
+              text: '📄 PDF / Share',
+              onPress: async () => {
+                await printAsPdf(data);
+                resolve({ success: true, method: 'pdf' });
+              },
+            },
+            {
+              text: 'Change Printer',
+              onPress: () => {
+                options.onNeedPrinterSetup?.();
+                resolve({ success: false, openSettings: true });
+              },
+            },
+          ],
+        );
       });
-    } else {
-      // Fallback: try direct print
-      await Print.printAsync({ uri });
     }
+
+    // If Bluetooth is available but no printer saved, offer to set up or use PDF
+    if (bluetoothAvailable && !savedPrinter) {
+      return new Promise((resolve) => {
+        Alert.alert(
+          'Print Receipt',
+          'No Bluetooth printer configured.',
+          [
+            {
+              text: '🖨️ Set Up Printer',
+              onPress: () => {
+                options.onNeedPrinterSetup?.();
+                resolve({ success: false, openSettings: true });
+              },
+            },
+            {
+              text: '📄 Print as PDF',
+              onPress: async () => {
+                await printAsPdf(data);
+                resolve({ success: true, method: 'pdf' });
+              },
+            },
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve({ success: false }) },
+          ]
+        );
+      });
+    }
+
+    // Bluetooth not available — PDF only
+    await printAsPdf(data);
+    return { success: true, method: 'pdf' };
+
   } catch (error) {
     console.error('Print error:', error);
     Alert.alert('Print Error', 'Could not generate receipt. Please try again.');
+    return { success: false };
   }
 }
 
 /**
  * Quick print button component hook — returns handler
  */
-export function usePrintReceipt(visitId, patient) {
+export function usePrintReceipt(visitId, patient, onNeedPrinterSetup) {
   return async () => {
     try {
       const apiService = require('../services/apiService').default;
@@ -196,7 +272,7 @@ export function usePrintReceipt(visitId, patient) {
         apiService.getVisitBills(visitId),
         apiService.getVisitBillingSummary(visitId),
       ]);
-      await printReceipt({ patient, bills, summary });
+      await printReceipt({ patient, bills, summary }, { onNeedPrinterSetup });
     } catch (e) {
       Alert.alert('Error', 'Could not load bill data for printing.');
     }
