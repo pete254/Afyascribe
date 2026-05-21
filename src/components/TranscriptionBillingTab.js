@@ -417,7 +417,7 @@ export default function TranscriptionBillingTab({ visitContext, selectedPatient,
       {/* Status banner */}
       {hasUnpaid ? (
         <View style={s.unpaidBanner}>
-          <MaterialCommunityIcons name="cash-clock" size={18} color="#b45309" />
+          <MaterialCommunityIcons name="clock-alert" size={18} color="#b45309" />
           <View style={{ flex: 1 }}>
             <Text style={s.unpaidBannerTitle}>Payment Pending</Text>
             <Text style={s.unpaidBannerBody}>

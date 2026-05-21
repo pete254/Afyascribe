@@ -31,18 +31,8 @@ const CMD = {
 
 // ── Get printer library (handles missing native module) ───────────────────────
 function getPrinterLib() {
-  try {
-    // Try the most common ESC/POS library for React Native
-    const lib = require('react-native-bluetooth-escpos-printer');
-    return lib.default || lib;
-  } catch (e) {
-    try {
-      const lib = require('@flysoft/react-native-thermal-printer');
-      return lib.default || lib;
-    } catch (e2) {
-      return null;
-    }
-  }
+  // Bluetooth printing not configured - use PDF export instead
+  return null;
 }
 
 // ── Save/load printer preference ──────────────────────────────────────────────
@@ -312,7 +302,7 @@ export async function printViaBluetooth(escPosText, printerDevice) {
   const lib = getPrinterLib();
 
   if (!lib) {
-    throw new Error('Bluetooth printer library not available. Please install react-native-bluetooth-escpos-printer and rebuild the app.');
+    throw new Error('Bluetooth printer library not available. For now, please print via PDF export instead.');
   }
 
   try {
@@ -334,7 +324,8 @@ export async function scanForPrinters() {
   const lib = getPrinterLib();
 
   if (!lib) {
-    throw new Error('Bluetooth printer library not available.');
+    console.log('Bluetooth printer library not available');
+    return [];
   }
 
   if (Platform.OS === 'android') {
@@ -368,7 +359,12 @@ export async function scanForPrinters() {
 
 // ── Check if Bluetooth printing is available ──────────────────────────────────
 export function isBluetoothPrintingAvailable() {
-  return getPrinterLib() !== null;
+  const lib = getPrinterLib();
+  if (lib === null) {
+    console.log('Bluetooth printer library not available in this environment');
+    return false;
+  }
+  return true;
 }
 
 export default {

@@ -17,24 +17,24 @@ function getSectionPrompt(sectionName, rawText) {
   
   // NEW: Lab Investigations
   if (nameLower.includes('lab') || nameLower.includes('investigation')) {
-    return `Rewrite lab results concisely in plain text (no headers, no asterisks):\n${rawText}`;
+    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
   }
   
   // NEW: Imaging
   if (nameLower.includes('imaging') || nameLower.includes('radiology')) {
-    return `Rewrite imaging findings concisely in plain text (no headers, no asterisks):\n${rawText}`;
+    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
   }
   
   if (nameLower.includes('diagnosis')) {
-    return `Rewrite concisely in plain text (no headers, no asterisks):\n${rawText}`;
+    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
   }
   
   if (nameLower.includes('management') || nameLower.includes('plan')) {
-    return `Rewrite concisely in plain text (no headers, no asterisks):\n${rawText}`;
+    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation(no headers, no asterisks):\n${rawText}`;
   }
   
   // Fallback
-  return `Rewrite in plain text (no headers, no asterisks):\n${rawText}`;
+  return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
 }
 
 /**

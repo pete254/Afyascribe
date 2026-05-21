@@ -467,7 +467,8 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
         collectedBy: `${user?.firstName} ${user?.lastName}`,
       });
       setReceiptVisible(true);
-      setBillingModal(false);
+      // Delay modal close to allow the updated bill state to render
+      setTimeout(() => setBillingModal(false), 300);
     }
   }, [billingVisit, loadBillsForVisit, loadQueue, user]);
 
@@ -531,7 +532,7 @@ export default function QueueScreen({ onBack, onTriagePatient }) {
     if (summary.hasPendingBills) {
       return (
         <View style={styles.billBadgeUnpaid}>
-          <MaterialCommunityIcons name="cash-clock" size={12} color="#b45309" />
+          <MaterialCommunityIcons name="clock-alert" size={12} color="#b45309" />
           <Text style={styles.billBadgeTextUnpaid}>KES {summary.unpaid?.toFixed(0)} unpaid</Text>
         </View>
       );

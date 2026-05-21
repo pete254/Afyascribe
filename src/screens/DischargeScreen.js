@@ -110,6 +110,8 @@ export default function DischargeScreen({
   const [saving, setSaving] = useState(false);
   const [reasonPickerVisible, setReasonPickerVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [emailingSoap, setEmailingSoap] = useState(false);
+  const [printingSoap, setPrintingSoap] = useState(false);
 
   const hasEmail = !!patient?.email;
 
@@ -156,6 +158,54 @@ export default function DischargeScreen({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handlePrintSoap = async () => {
+    if (!soapNoteId) { Alert.alert('Error', 'No SOAP note ID available'); return; }
+    setPrintingSoap(true);
+    try {
+      const apiService = require('../services/apiService').default;
+      const note = await apiService.getSoapNote(soapNoteId);
+      const { printSoapNote } = require('../utils/printSoapNote');
+      await printSoapNote({ note, patient, facility: { name: 'AfyaScribe Facility' } });
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Failed to print SOAP note');
+    } finally {
+      setPrintingSoap(false);
+    }
+  };
+
+  const handleEmailSoap = async () => {
+    if (!soapNoteId) { Alert.alert('Error', 'No SOAP note ID available'); return; }
+    if (!patient?.email) {
+      Alert.alert(
+        'No Email on File',
+        `${patient?.firstName} has no email address. Update the patient profile to add one.`,
+      );
+      return;
+    }
+    Alert.alert(
+      'Send Consultation Summary',
+      `Send SOAP note summary to ${patient.email}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send',
+          onPress: async () => {
+            setEmailingSoap(true);
+            try {
+              const apiService = require('../services/apiService').default;
+              await apiService.emailSoapNote(soapNoteId);
+              Alert.alert('✅ Sent', `Consultation summary sent to ${patient.email}`);
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to send email');
+            } finally {
+              setEmailingSoap(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -234,6 +284,49 @@ export default function DischargeScreen({
             <Text style={[styles.optionTitle, { color: '#374151' }]}>Discharge Now</Text>
             <Text style={styles.optionSubtitle}>
               Discharge without a prescription or follow-up
+            </Text>
+          </TouchableOpacity>
+
+          {/* Print SOAP Note */}
+          <TouchableOpacity
+            style={[styles.optionCard, { backgroundColor: '#f0f9ff', borderColor: '#bae6fd', borderWidth: 1.5 }]}
+            onPress={handlePrintSoap}
+            disabled={printingSoap}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.optionIconBox, { backgroundColor: '#e0f2fe' }]}>
+              {printingSoap
+                ? <ActivityIndicator size="large" color="#0284c7" />
+                : <MaterialCommunityIcons name="printer-outline" size={32} color="#0284c7" />
+              }
+            </View>
+            <Text style={[styles.optionTitle, { color: '#0284c7' }]}>Print SOAP Note</Text>
+            <Text style={styles.optionSubtitle}>
+              Generate a printable PDF of the consultation notes
+            </Text>
+          </TouchableOpacity>
+
+          {/* Email SOAP Note */}
+          <TouchableOpacity
+            style={[styles.optionCard, { backgroundColor: '#fdf4ff', borderColor: '#e9d5ff', borderWidth: 1.5 }]}
+            onPress={handleEmailSoap}
+            disabled={emailingSoap}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.optionIconBox, { backgroundColor: '#f3e8ff' }]}>
+              {emailingSoap
+                ? <ActivityIndicator size="large" color="#9333ea" />
+                : <MaterialCommunityIcons name="email-outline" size={32} color="#9333ea" />
+              }
+            </View>
+            <Text style={[styles.optionTitle, { color: '#9333ea' }]}>
+              Email to Patient
+              {!patient?.email && <Text style={{ fontSize: 12, color: '#94a3b8' }}> (no email)</Text>}
+            </Text>
+            <Text style={styles.optionSubtitle}>
+              {patient?.email
+                ? `Send summary to ${patient.email}`
+                : 'Add patient email in directory first'}
             </Text>
           </TouchableOpacity>
 

@@ -447,7 +447,7 @@ export default function ReportsScreen({ onBack }) {
                 onPress={() => openFinancialDrillDown('collected', 'Collected Payments')}
               />
               <SummaryCard
-                label="Outstanding" icon="cash-clock" color="#dc2626"
+                label="Outstanding" icon="clock-alert" color="#dc2626"
                 value={finData.summary.totalOutstanding}
                 onPress={() => openFinancialDrillDown('unpaid', 'Outstanding Bills')}
               />

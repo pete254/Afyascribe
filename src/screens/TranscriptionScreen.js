@@ -565,7 +565,7 @@ export default function TranscriptionScreen({
               onPress={() => setActiveTab('billing')}
               activeOpacity={0.8}
             >
-              <MaterialCommunityIcons name="cash-clock" size={18} color="#b45309" />
+              <MaterialCommunityIcons name="clock-alert" size={18} color="#b45309" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.unpaidWarningTitle}>Unpaid Bills — Note saved as draft</Text>
                 <Text style={styles.unpaidWarningBody}>Tap to view billing details →</Text>
