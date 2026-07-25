@@ -35,6 +35,7 @@ export default function CreateClinicScreen({ navigation }) {
   const { createClinic } = useAuth();
 
   const [step, setStep] = useState(1);       // 1: mode, 2: details, 3: account
+  const [creationCode, setCreationCode] = useState('');
   const [clinicMode, setClinicMode] = useState('');
   const [facilityName, setFacilityName] = useState('');
   const [facilityCode, setFacilityCode] = useState('');
@@ -68,8 +69,13 @@ export default function CreateClinicScreen({ navigation }) {
       Alert.alert('Missing', 'Password must be at least 8 characters'); return;
     }
 
+    if (!creationCode.trim()) {
+      Alert.alert('Missing', 'Enter the creation code from AfyaScribe'); return;
+    }
+
     setLoading(true);
     const result = await createClinic({
+      creationCode: creationCode.trim().toUpperCase(),
       email: email.trim(),
       password,
       firstName: firstName.trim(),
@@ -101,6 +107,22 @@ export default function CreateClinicScreen({ navigation }) {
           This controls how staff permissions work. You can change it later.
         </Text>
 
+        <View style={s.fieldGroup}>
+          <Text style={s.label}>AfyaScribe creation code *</Text>
+          <TextInput
+            style={[s.input, { fontWeight: '700', letterSpacing: 2 }]}
+            value={creationCode}
+            onChangeText={t => setCreationCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+            placeholder="e.g. K7P2M9QX"
+            placeholderTextColor="#cbd5e1"
+            autoCapitalize="characters"
+            maxLength={20}
+          />
+          <Text style={s.hint}>
+            A clinic can only be created with a code from AfyaScribe. Don't have one? Contact us to request one.
+          </Text>
+        </View>
+
         {MODES.map(m => (
           <TouchableOpacity
             key={m.value}
@@ -126,9 +148,9 @@ export default function CreateClinicScreen({ navigation }) {
         ))}
 
         <TouchableOpacity
-          style={[s.nextBtn, !clinicMode && s.nextBtnDisabled]}
+          style={[s.nextBtn, (!clinicMode || !creationCode.trim()) && s.nextBtnDisabled]}
           onPress={() => setStep(2)}
-          disabled={!clinicMode}
+          disabled={!clinicMode || !creationCode.trim()}
         >
           <Text style={s.nextBtnText}>Next</Text>
           <Ionicons name="arrow-forward" size={18} color="#fff" />
