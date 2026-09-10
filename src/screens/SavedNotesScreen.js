@@ -47,8 +47,8 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
         labInvestigations: note.labInvestigations || '', // NEW
         imaging: note.imaging || '', // NEW
         diagnosis: note.diagnosis || '',
-        icd10Code: note.icd10Code || '', // NEW
-        icd10Description: note.icd10Description || '', // NEW
+        icd11Code: note.icd11Code || '', // NEW
+        icd11Description: note.icd11Description || '', // NEW
         management: note.management || '',
         
         // Combined view
@@ -77,7 +77,7 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
     if (note.labInvestigations) preview += `Lab: ${note.labInvestigations}\n\n`; // NEW
     if (note.imaging) preview += `Imaging: ${note.imaging}\n\n`; // NEW
     if (note.diagnosis) preview += `A: ${note.diagnosis}\n\n`;
-    if (note.icd10Code) preview += `ICD-10: ${note.icd10Code} - ${note.icd10Description}\n\n`; // NEW
+    if (note.icd11Code) preview += `ICD-11: ${note.icd11Code} - ${note.icd11Description}\n\n`; // NEW
     if (note.management) preview += `P: ${note.management}`;
     return preview || 'No SOAP notes available';
   };
@@ -198,10 +198,10 @@ export default function SavedNotesScreen({ onViewPatientHistory, onEditWithVoice
             <Text style={styles.indicatorText}>A</Text>
           </View>
         )}
-        {item.icd10Code && (
+        {item.icd11Code && (
           <View style={styles.indicator}>
             <Ionicons name="clipboard-outline" size={14} color="#0f766e" />
-            <Text style={styles.indicatorText}>ICD-10</Text>
+            <Text style={styles.indicatorText}>ICD-11</Text>
           </View>
         )}
         {item.management && (

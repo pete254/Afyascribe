@@ -199,7 +199,7 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editedData, setEditedData]     = useState({
     symptoms: '', physicalExamination: '', labInvestigations: '',
-    imaging: '', diagnosis: '', icd10Code: '', icd10Description: '', management: '',
+    imaging: '', diagnosis: '', icd11Code: '', icd11Description: '', management: '',
   });
   const [showEditHistory, setShowEditHistory] = useState({});
   const [activeTab, setActiveTab]       = useState('timeline'); // 'timeline' | 'all-docs'
@@ -226,8 +226,8 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
     setEditedData({
       symptoms: note.symptoms, physicalExamination: note.physicalExamination,
       labInvestigations: note.labInvestigations || '', imaging: note.imaging || '',
-      diagnosis: note.diagnosis, icd10Code: note.icd10Code || '',
-      icd10Description: note.icd10Description || '', management: note.management,
+      diagnosis: note.diagnosis, icd11Code: note.icd11Code || '',
+      icd11Description: note.icd11Description || '', management: note.management,
     });
   };
 
@@ -235,7 +235,7 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
     setEditingNoteId(null);
     setEditedData({
       symptoms: '', physicalExamination: '', labInvestigations: '',
-      imaging: '', diagnosis: '', icd10Code: '', icd10Description: '', management: '',
+      imaging: '', diagnosis: '', icd11Code: '', icd11Description: '', management: '',
     });
   };
 
@@ -315,8 +315,8 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
               ['Lab Investigations', 'labInvestigations', 'Lab results...'],
               ['Imaging', 'imaging', 'Imaging findings...'],
               ['Diagnosis', 'diagnosis', 'Diagnosis...'],
-              ['ICD-10 Code', 'icd10Code', 'e.g. J18.9'],
-              ['ICD-10 Description', 'icd10Description', 'ICD-10 description'],
+              ['ICD-11 Code', 'icd11Code', 'e.g. J18.9'],
+              ['ICD-11 Description', 'icd11Description', 'ICD-11 description'],
               ['Management', 'management', 'Management plan...'],
             ].map(([label, key, ph]) => (
               <View key={key}>
@@ -325,7 +325,7 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
                   style={styles.editInput}
                   value={editedData[key]}
                   onChangeText={(text) => setEditedData((prev) => ({ ...prev, [key]: text }))}
-                  multiline={key !== 'icd10Code' && key !== 'icd10Description'}
+                  multiline={key !== 'icd11Code' && key !== 'icd11Description'}
                   placeholder={ph}
                 />
               </View>
@@ -368,11 +368,11 @@ export default function PatientHistoryScreen({ patient, onBack, onAddNewNote, on
                     <Text style={styles.sectionTitle}>{title}</Text>
                   </View>
                   <Text style={styles.sectionText}>{value}</Text>
-                  {title === 'Diagnosis' && item.icd10Code && (
-                    <View style={styles.icd10Badge}>
+                  {title === 'Diagnosis' && item.icd11Code && (
+                    <View style={styles.icd11Badge}>
                       <Ionicons name="clipboard-outline" size={16} color="#065f46" />
-                      <Text style={styles.icd10BadgeText}>
-                        ICD-10: {item.icd10Code} — {item.icd10Description}
+                      <Text style={styles.icd11BadgeText}>
+                        ICD-11: {item.icd11Code} — {item.icd11Description}
                       </Text>
                     </View>
                   )}
@@ -609,12 +609,12 @@ const styles = StyleSheet.create({
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: '#374151' },
   sectionText: { fontSize: 15, color: '#1f2937', lineHeight: 22 },
-  icd10Badge: {
+  icd11Badge: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8,
     backgroundColor: '#dcfce7', padding: 10, borderRadius: 6,
     borderLeftWidth: 3, borderLeftColor: '#0f766e',
   },
-  icd10BadgeText: { fontSize: 13, fontWeight: '600', color: '#065f46', flex: 1 },
+  icd11BadgeText: { fontSize: 13, fontWeight: '600', color: '#065f46', flex: 1 },
 
   // Edit form
   editForm: { maxHeight: 600 },

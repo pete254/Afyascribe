@@ -1,4 +1,4 @@
-// src/components/ICD10SearchDropdown.js - FIXED VERSION
+// src/components/ICD11SearchDropdown.js - FIXED VERSION
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import apiService from '../services/apiService';
 
-export default function ICD10SearchDropdown({ 
+export default function ICD11SearchDropdown({ 
   selectedCode, 
   onCodeSelect,
-  placeholder = "Search ICD-10 diagnosis code...",
+  placeholder = "Search ICD-11 diagnosis code...",
   disabled = false 
 }) {
   const [query, setQuery] = useState('');
@@ -56,8 +56,8 @@ export default function ICD10SearchDropdown({
 
   const loadPopularCodes = async () => {
     try {
-      console.log('📊 Loading popular ICD-10 codes...');
-      const codes = await apiService.getPopularIcd10Codes(50);
+      console.log('📊 Loading popular ICD-11 codes...');
+      const codes = await apiService.getPopularIcd11Codes(50);
       console.log(`✅ Loaded ${codes.length} popular codes`);
       setPopularCodes(codes);
       setResults(codes);
@@ -69,12 +69,12 @@ export default function ICD10SearchDropdown({
   const searchCodes = async (searchQuery) => {
     setLoading(true);
     try {
-      console.log(`🔍 Searching ICD-10 for: "${searchQuery}"`);
-      const codes = await apiService.searchIcd10Codes(searchQuery, 100);
+      console.log(`🔍 Searching ICD-11 for: "${searchQuery}"`);
+      const codes = await apiService.searchIcd11Codes(searchQuery, 100);
       console.log(`✅ Found ${codes.length} codes`);
       setResults(codes);
     } catch (error) {
-      console.error('❌ ICD-10 search error:', error);
+      console.error('❌ ICD-11 search error:', error);
       // Fallback to popular codes on error
       setResults(popularCodes);
     } finally {
@@ -84,7 +84,7 @@ export default function ICD10SearchDropdown({
 
   // ✅ FIXED: Ensure selection completes before state changes
   const handleSelectCode = (code) => {
-    console.log('✅ Selected ICD-10 code:', code.code, '-', code.short_description);
+    console.log('✅ Selected ICD-11 code:', code.code, '-', code.short_description);
     
     // Immediately notify parent (this is synchronous)
     onCodeSelect(code);
@@ -100,7 +100,7 @@ export default function ICD10SearchDropdown({
   };
 
   const handleClearSelection = () => {
-    console.log('🗑️ Clearing ICD-10 selection');
+    console.log('🗑️ Clearing ICD-11 selection');
     // Reset dropdown state
     setQuery('');
     setResults(popularCodes);
@@ -152,7 +152,7 @@ export default function ICD10SearchDropdown({
       <View style={styles.selectedContainer}>
         <View style={styles.selectedCard}>
           <View style={styles.selectedContent}>
-            <Text style={styles.selectedLabel}>ICD-10 Code:</Text>
+            <Text style={styles.selectedLabel}>ICD-11 Code:</Text>
             <Text style={styles.selectedCode}>{selectedCode.code}</Text>
             <Text style={styles.selectedDescription} numberOfLines={2}>
               {selectedCode.short_description}
@@ -173,7 +173,7 @@ export default function ICD10SearchDropdown({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>
-        ICD-10 Diagnosis Code <Text style={styles.optional}>(Optional)</Text>
+        ICD-11 Diagnosis Code <Text style={styles.optional}>(Optional)</Text>
       </Text>
 
       {/* Search Input */}

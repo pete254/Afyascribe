@@ -294,18 +294,18 @@ class ApiService {
     });
   }
 
-  // ==================== ICD-10 ENDPOINTS ====================
+  // ==================== ICD-11 ENDPOINTS ====================
 
-  async getPopularIcd10Codes() {
-    return await this.request('/icd10/popular');
+  async getPopularIcd11Codes() {
+    return await this.request('/icd11/popular');
   }
 
-  async searchIcd10Codes(query) {
-    return await this.request(`/icd10/search?q=${encodeURIComponent(query)}`);
+  async searchIcd11Codes(query) {
+    return await this.request(`/icd11/search?q=${encodeURIComponent(query)}`);
   }
 
-  async getIcd10Code(code) {
-    return await this.request(`/icd10/${code}`);
+  async getIcd11Code(code) {
+    return await this.request(`/icd11/${code}`);
   }
 
   // ==================== PATIENT VISITS ENDPOINTS ====================
@@ -685,11 +685,14 @@ class ApiService {
 
   // ==================== RECEIPTS ====================
 
+  // NOTE: there is no `GET /billing/paid` route on the backend — it 404s.
+  // Settled bills come from the financial report, filtered to paid/waived.
+  // Requires an admin or clinic-owner account (see assertCanViewReports).
   async getPaidBills(from, to) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return await this.request(`/billing/paid?${params.toString()}`);
+    const report = await this.getFinancialReport(from, to);
+    return (report?.bills || []).filter(
+      (b) => b.status === 'paid' || b.status === 'waived',
+    );
   }
 
   // ==================== APPOINTMENTS ENDPOINTS ====================

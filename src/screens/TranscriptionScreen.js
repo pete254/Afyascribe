@@ -97,7 +97,7 @@ export default function TranscriptionScreen({
   const [imaging, setImaging] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [management, setManagement] = useState('');
-  const [selectedIcd10Code, setSelectedIcd10Code] = useState(null);
+  const [selectedIcd11Code, setSelectedIcd11Code] = useState(null);
   const [activeRecordingSection, setActiveRecordingSection] = useState(null);
   const [formatingSections, setFormatingSections] = useState({
     symptoms: false, physicalExamination: false, labInvestigations: false,
@@ -181,10 +181,10 @@ export default function TranscriptionScreen({
       setImaging(noteToEdit.imaging || '');
       setDiagnosis(noteToEdit.diagnosis || '');
       setManagement(noteToEdit.management || '');
-      if (noteToEdit.icd10Code) {
-        setSelectedIcd10Code({ 
-          code: noteToEdit.icd10Code, 
-          short_description: noteToEdit.icd10Description || '' 
+      if (noteToEdit.icd11Code) {
+        setSelectedIcd11Code({ 
+          code: noteToEdit.icd11Code, 
+          short_description: noteToEdit.icd11Description || '' 
         });
       }
       setCurrentDraftId(noteToEdit.id);
@@ -213,10 +213,10 @@ export default function TranscriptionScreen({
           setImaging(existingDraft.imaging || '');
           setDiagnosis(existingDraft.diagnosis || '');
           setManagement(existingDraft.management || '');
-          if (existingDraft.icd10Code) {
-            setSelectedIcd10Code({
-              code: existingDraft.icd10Code,
-              short_description: existingDraft.icd10Description || '',
+          if (existingDraft.icd11Code) {
+            setSelectedIcd11Code({
+              code: existingDraft.icd11Code,
+              short_description: existingDraft.icd11Description || '',
             });
           }
           setCurrentDraftId(existingDraft.id);
@@ -264,7 +264,7 @@ export default function TranscriptionScreen({
   const clearForm = () => {
     setSymptoms(''); setPhysicalExamination(''); setLabInvestigations('');
     setImaging(''); setDiagnosis(''); setManagement('');
-    setSelectedIcd10Code(null); setCurrentDraftId(null);
+    setSelectedIcd11Code(null); setCurrentDraftId(null);
     setSelectedPatient(null); setPendingDocs([]);
     setHasUnpaidBills(false);
     onClearPatient?.();
@@ -276,11 +276,11 @@ export default function TranscriptionScreen({
     if (onClearNote && noteToEdit && noteToEdit.patient?.id !== patient?.id) {
       onClearNote();
       setSymptoms(''); setPhysicalExamination(''); setLabInvestigations('');
-      setImaging(''); setDiagnosis(''); setSelectedIcd10Code(null); setManagement('');
+      setImaging(''); setDiagnosis(''); setSelectedIcd11Code(null); setManagement('');
     }
   };
 
-  const handleIcd10Select = (code) => setSelectedIcd10Code(code);
+  const handleIcd11Select = (code) => setSelectedIcd11Code(code);
   const toggleSection = (sectionName) => {
     setCollapsedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
   };
@@ -370,8 +370,8 @@ export default function TranscriptionScreen({
       const fields = {
         symptoms: symptoms.trim(), physicalExamination: physicalExamination.trim(),
         labInvestigations: labInvestigations.trim(), imaging: imaging.trim(),
-        diagnosis: diagnosis.trim(), icd10Code: selectedIcd10Code?.code || null,
-        icd10Description: selectedIcd10Code?.short_description || null,
+        diagnosis: diagnosis.trim(), icd11Code: selectedIcd11Code?.code || null,
+        icd11Description: selectedIcd11Code?.short_description || null,
         management: management.trim(),
       };
       let saved;
@@ -410,8 +410,8 @@ export default function TranscriptionScreen({
           labInvestigations: labInvestigations.trim(),
           imaging: imaging.trim(),
           diagnosis: diagnosis.trim(),
-          icd10Code: selectedIcd10Code?.code || null,
-          icd10Description: selectedIcd10Code?.short_description || null,
+          icd11Code: selectedIcd11Code?.code || null,
+          icd11Description: selectedIcd11Code?.short_description || null,
           management: management.trim(),
         };
         if (currentDraftId) {
@@ -444,8 +444,8 @@ export default function TranscriptionScreen({
         labInvestigations: labInvestigations.trim() || '',
         imaging: imaging.trim() || '',
         diagnosis: diagnosis.trim() || '',
-        icd10Code: selectedIcd10Code?.code || null,
-        icd10Description: selectedIcd10Code?.short_description || null,
+        icd11Code: selectedIcd11Code?.code || null,
+        icd11Description: selectedIcd11Code?.short_description || null,
         management: management.trim() || '',
       };
 
@@ -474,7 +474,7 @@ export default function TranscriptionScreen({
           text: 'New Note',
           onPress: () => {
             setSymptoms(''); setPhysicalExamination(''); setLabInvestigations('');
-            setImaging(''); setDiagnosis(''); setSelectedIcd10Code(null);
+            setImaging(''); setDiagnosis(''); setSelectedIcd11Code(null);
             setManagement(''); setCurrentDraftId(null); setPendingDocs([]);
             setSelectedPatient(null); setHasUnpaidBills(false);
             if (onClearPatient) onClearPatient();
@@ -498,7 +498,7 @@ export default function TranscriptionScreen({
     setImaging(draft.imaging ?? '');
     setDiagnosis(draft.diagnosis ?? '');
     setManagement(draft.management ?? '');
-    if (draft.icd10Code) setSelectedIcd10Code({ code: draft.icd10Code, short_description: draft.icd10Description });
+    if (draft.icd11Code) setSelectedIcd11Code({ code: draft.icd11Code, short_description: draft.icd11Description });
     setCurrentDraftId(draft.id);
     setPendingDocs([]);
     setActiveTab('new');
@@ -642,7 +642,7 @@ export default function TranscriptionScreen({
         isFormatting={formatingSections.diagnosis}
         placeholder="Clinical diagnosis, assessment, differential diagnosis..."
         isCollapsed={collapsedSections.diagnosis} onToggleCollapse={() => toggleSection('diagnosis')}
-        showIcd10Search={true} selectedIcd10Code={selectedIcd10Code} onIcd10Select={handleIcd10Select} />,
+        showIcd11Search={true} selectedIcd11Code={selectedIcd11Code} onIcd11Select={handleIcd11Select} />,
     },
     {
       id: 'management', type: 'soap-section',
@@ -824,8 +824,8 @@ export default function TranscriptionScreen({
                     labInvestigations: labInvestigations.trim(),
                     imaging: imaging.trim(),
                     diagnosis: diagnosis.trim(),
-                    icd10Code: selectedIcd10Code?.code || null,
-                    icd10Description: selectedIcd10Code?.short_description || null,
+                    icd11Code: selectedIcd11Code?.code || null,
+                    icd11Description: selectedIcd11Code?.short_description || null,
                     management: management.trim(),
                   };
                   if (currentDraftId) {

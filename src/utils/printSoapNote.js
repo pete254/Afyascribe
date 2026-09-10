@@ -20,7 +20,7 @@ export async function printSoapNote({ note, patient, facility }) {
     { label: 'Lab Investigations',         value: note.labInvestigations },
     { label: 'Imaging',                    value: note.imaging },
     { label: 'A — Diagnosis',              value: note.diagnosis },
-    note.icd10Code && { label: 'ICD-10 Code', value: `${note.icd10Code} — ${note.icd10Description || ''}` },
+    note.icd11Code && { label: 'ICD-11 Code', value: `${note.icd11Code} — ${note.icd11Description || ''}` },
     { label: 'P — Management Plan',        value: note.management },
   ].filter(s => s && s.value && s.value.trim());
 

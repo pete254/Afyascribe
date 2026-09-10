@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import ICD10SearchDropdown from './ICD10SearchDropdown';
+import ICD11SearchDropdown from './ICD11SearchDropdown';
 
 function SoapSectionInput({
   title,
@@ -24,10 +24,10 @@ function SoapSectionInput({
   isCollapsed = false,
   onToggleCollapse,
 
-  // ICD-10 props
-  showIcd10Search = false,
-  selectedIcd10Code = null,
-  onIcd10Select,
+  // ICD-11 props
+  showIcd11Search = false,
+  selectedIcd11Code = null,
+  onIcd11Select,
 }) {
   return (
     <View style={styles.container}>
@@ -53,10 +53,10 @@ function SoapSectionInput({
             </View>
           )}
 
-          {showIcd10Search && selectedIcd10Code && (
-            <View style={styles.icd10Badge}>
-              <Text style={styles.icd10BadgeText}>
-                {selectedIcd10Code.code}
+          {showIcd11Search && selectedIcd11Code && (
+            <View style={styles.icd11Badge}>
+              <Text style={styles.icd11BadgeText}>
+                {selectedIcd11Code.code}
               </Text>
             </View>
           )}
@@ -100,12 +100,12 @@ function SoapSectionInput({
             />
           </View>
 
-          {/* ICD-10 Dropdown */}
-          {showIcd10Search && (
-            <View style={styles.icd10Container}>
-              <ICD10SearchDropdown
-                selectedCode={selectedIcd10Code}
-                onCodeSelect={onIcd10Select}
+          {/* ICD-11 Dropdown */}
+          {showIcd11Search && (
+            <View style={styles.icd11Container}>
+              <ICD11SearchDropdown
+                selectedCode={selectedIcd11Code}
+                onCodeSelect={onIcd11Select}
                 disabled={isRecording || isFormatting}
               />
             </View>
@@ -207,14 +207,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
-  icd10Badge: {
+  icd11Badge: {
     backgroundColor: '#0f766e',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     marginLeft: 8,
   },
-  icd10BadgeText: {
+  icd11BadgeText: {
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '700',
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  icd10Container: {
+  icd11Container: {
     marginBottom: 12,
   },
   actionButtons: {
