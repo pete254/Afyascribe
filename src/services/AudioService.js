@@ -1,8 +1,8 @@
 // src/services/AudioService.js - Backend Transcription Version
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { API_URL } from '../config/api';
 
 class AudioService {
   constructor() {
@@ -207,12 +207,7 @@ class AudioService {
       console.log('📊 First 50 chars of base64:', base64Audio.substring(0, 50));
 
       // Get backend URL from multiple sources
-      const API_URL = 
-        Constants.expoConfig?.extra?.API_URL ||
-        Constants.manifest?.extra?.API_URL ||
-        Constants.manifest2?.extra?.API_URL ||
-        process.env.EXPO_PUBLIC_API_URL ||
-        'https://afyascribe-backend.onrender.com';
+      // One source of truth for the backend address — see src/config/api.js.
 
       // Get authentication token
       const storage = require('../utils/storage').default;

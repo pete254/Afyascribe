@@ -1,9 +1,10 @@
 // src/services/apiService.js
 import storage from '../utils/storage';
+import { API_URL } from '../config/api';
 
 class ApiService {
   constructor() {
-    this.baseURL = 'https://afyascribe-backend.onrender.com';
+    this.baseURL = API_URL;
   }
 
   // ==================== CORE REQUEST METHOD ====================
@@ -642,7 +643,7 @@ class ApiService {
   }
 
   getInsuranceClaimsExportUrl(from, to, scheme) {
-    const BASE = 'https://afyascribe-backend.onrender.com';
+    const BASE = this.baseURL;
     const params = new URLSearchParams();
     if (from) params.append('from', from);
     if (to) params.append('to', to);
