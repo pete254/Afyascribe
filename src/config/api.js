@@ -14,8 +14,8 @@ import Constants from 'expo-constants';
  * that does not yet hold the real records. At cutover, change DEFAULT_API_URL
  * to the commented line, then build and publish.
  */
-const DEFAULT_API_URL = 'https://afyascribe-backend.onrender.com';
-// const DEFAULT_API_URL = 'https://api.afyascribe.co.ke';
+// const DEFAULT_API_URL = 'https://afyascribe-backend.onrender.com'; // standby, before 20 Oct 2026
+const DEFAULT_API_URL = 'https://api.afyascribe.co.ke';
 
 export const API_URL = (
   Constants.expoConfig?.extra?.API_URL ||
