@@ -39,33 +39,62 @@ export const AuthProvider = ({ children }) => {
 
   // ── LOGIN ──────────────────────────────────────────────────────────────────
 
+  /** Store a completed sign-in: the token and the user it belongs to. */
+  const completeSignIn = async (response) => {
+    // response.user now always includes isOwner and clinicMode from the server
+    const userToStore = {
+      ...response.user,
+      // Defensive: ensure these fields always exist so capabilities.js works
+      isOwner:         response.user.isOwner         ?? false,
+      clinicMode:      response.user.clinicMode      ?? null,
+      facilityLogoUrl: response.user.facilityLogoUrl ?? null,
+    };
+
+    await storage.setToken(response.access_token);
+    await storage.setUser(userToStore);
+
+    setUser(userToStore);
+    setIsAuthenticated(true);
+    return userToStore;
+  };
+
   const login = async (email, password) => {
     try {
       setLoading(true);
       const response = await apiService.login(email, password);
 
-      // response.user now always includes isOwner and clinicMode from the server
-      const userToStore = {
-        ...response.user,
-        // Defensive: ensure these fields always exist so capabilities.js works
-        isOwner:         response.user.isOwner         ?? false,
-        clinicMode:      response.user.clinicMode      ?? null,
-        facilityLogoUrl: response.user.facilityLogoUrl ?? null,
-      };
+      // A second factor is needed: the screen asks for the code.
+      if (response.otpRequired) {
+        return {
+          success: false,
+          otpRequired: true,
+          method: response.method || 'email',
+          message: response.message,
+        };
+      }
 
-      await storage.setToken(response.access_token);
-      await storage.setUser(userToStore);
-
-      setUser(userToStore);
-      setIsAuthenticated(true);
-
-      return { success: true, user: userToStore };
+      const user = await completeSignIn(response);
+      return { success: true, user };
     } catch (error) {
       console.error('Login error:', error);
       return {
         success: false,
         error: error.message || 'Login failed. Please check your credentials.',
       };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Finish a sign-in that asked for a code (emailed, or from an authenticator app). */
+  const loginWithCode = async (email, password, code) => {
+    try {
+      setLoading(true);
+      const response = await apiService.loginWithCode(email, password, code);
+      const user = await completeSignIn(response);
+      return { success: true, user };
+    } catch (error) {
+      return { success: false, error: error.message || 'That code was not accepted.' };
     } finally {
       setLoading(false);
     }
@@ -169,6 +198,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     isAuthenticated,
     login,
+    loginWithCode,
     registerWithInviteCode,
     createClinic,
     logout,

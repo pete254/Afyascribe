@@ -77,7 +77,33 @@ class ApiService {
       await storage.saveToken(data.access_token);
       await storage.saveUser(data.user);
     }
+    // Otherwise { otpRequired: true, method: 'email' | 'totp', message }:
+    // finish with loginWithCode.
     return data;
+  }
+
+  /**
+   * Second step of sign-in: the code emailed to the user, or from their
+   * authenticator app (or one of its backup codes). The password is sent
+   * again because the server checks both together.
+   */
+  async loginWithCode(email, password, code) {
+    const data = await this.request('/auth/login-with-code', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, code }),
+    });
+    if (data.access_token) {
+      await storage.saveToken(data.access_token);
+      await storage.saveUser(data.user);
+    }
+    return data;
+  }
+
+  async resendLoginCode(email, password) {
+    return this.request('/auth/resend-login-code', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
   }
 
   async register(userData) {

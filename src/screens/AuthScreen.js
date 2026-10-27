@@ -25,8 +25,15 @@ const ROLES = [
 ];
 
 export default function AuthScreen({ navigation }) {
-  // 'login' | 'invite-code' | 'register-details'
+  // 'login' | 'sign-in-code' | 'invite-code' | 'register-details'
   const [mode, setMode] = useState('login');
+
+  // Second step of sign-in: a code emailed, or from an authenticator app
+  // (which can also take one of its backup codes).
+  const [codeMethod, setCodeMethod] = useState('email');
+  const [codeMessage, setCodeMessage] = useState('');
+  const [signInCode, setSignInCode] = useState('');
+  const [useBackup, setUseBackup] = useState(false);
 
   // Login fields
   const [email, setEmail] = useState('');
@@ -47,7 +54,7 @@ export default function AuthScreen({ navigation }) {
 
   const [loading, setLoading] = useState(false);
 
-  const { login, registerWithInviteCode } = useAuth();
+  const { login, loginWithCode, registerWithInviteCode } = useAuth();
 
   // ── LOGIN ──────────────────────────────────────────────────────────────────
 
@@ -59,8 +66,36 @@ export default function AuthScreen({ navigation }) {
     setLoading(true);
     const result = await login(email.trim(), password);
     setLoading(false);
+    if (result.otpRequired) {
+      setCodeMethod(result.method);
+      setCodeMessage(result.message || '');
+      setSignInCode('');
+      setUseBackup(false);
+      setMode('sign-in-code');
+      return;
+    }
     if (!result.success) Alert.alert('Login Failed', result.error);
   };
+
+  const handleSignInCode = async () => {
+    setLoading(true);
+    const result = await loginWithCode(email.trim(), password, signInCode.trim());
+    setLoading(false);
+    if (!result.success) Alert.alert('Code not accepted', result.error);
+  };
+
+  const handleResendCode = async () => {
+    try {
+      const { message } = await apiService.resendLoginCode(email.trim(), password);
+      setCodeMessage(message);
+    } catch (error) {
+      Alert.alert('Could not resend', error.message);
+    }
+  };
+
+  const codeReady = useBackup
+    ? signInCode.replace(/[^0-9A-Z]/g, '').length === 8
+    : signInCode.length === 6;
 
   // ── INVITE CODE STEP ───────────────────────────────────────────────────────
 
@@ -110,6 +145,8 @@ export default function AuthScreen({ navigation }) {
 
   const resetToLogin = () => {
     setMode('login');
+    setSignInCode('');
+    setUseBackup(false);
     setInviteCode('');
     setFacilityInfo(null);
     setFirstName('');
@@ -138,6 +175,7 @@ export default function AuthScreen({ navigation }) {
             <Text style={styles.title}>AfyaScribe</Text>
             <Text style={styles.subtitle}>
               {mode === 'login' && 'Sign in to your account'}
+              {mode === 'sign-in-code' && `Signing in as ${email.trim()}`}
               {mode === 'invite-code' && 'Enter your facility invite code'}
               {mode === 'register-details' && `Joining: ${facilityInfo?.facilityName}`}
             </Text>
@@ -230,6 +268,69 @@ export default function AuthScreen({ navigation }) {
                 <Text style={[styles.facilityButtonText, { color: '#64748b' }]}>
                   Large facility? Contact us
                 </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ── SIGN-IN CODE ──────────────────────────────────────────────── */}
+          {mode === 'sign-in-code' && (
+            <View style={styles.form}>
+              <Text style={styles.infoText}>
+                {useBackup
+                  ? 'Enter one of the backup codes you saved when you set up your authenticator app. Each works once.'
+                  : codeMessage}
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>{useBackup ? 'Backup code' : '6-digit code'}</Text>
+                <TextInput
+                  style={[styles.input, styles.codeInput]}
+                  value={signInCode}
+                  onChangeText={(t) =>
+                    setSignInCode(useBackup ? t.toUpperCase().replace(/[^0-9A-Z-]/g, '') : t.replace(/\D/g, ''))
+                  }
+                  placeholder={useBackup ? 'ABCD-EFGH' : '000000'}
+                  keyboardType={useBackup ? 'default' : 'number-pad'}
+                  autoCapitalize="characters"
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                  maxLength={useBackup ? 9 : 6}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, (loading || !codeReady) && styles.buttonDisabled]}
+                onPress={handleSignInCode}
+                disabled={loading || !codeReady}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Verify & Sign In</Text>
+                )}
+              </TouchableOpacity>
+
+              {codeMethod === 'email' ? (
+                <TouchableOpacity style={styles.forgotContainer} onPress={handleResendCode}>
+                  <Text style={styles.forgotText}>Resend code</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.forgotContainer}
+                  onPress={() => {
+                    setUseBackup(!useBackup);
+                    setSignInCode('');
+                  }}
+                >
+                  <Text style={styles.forgotText}>
+                    {useBackup ? 'Use the app instead' : 'Lost your phone? Use a backup code'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.backButton} onPress={resetToLogin}>
+                <Ionicons name="arrow-back" size={18} color="#64748b" />
+                <Text style={styles.backButtonText}>Back to Sign In</Text>
               </TouchableOpacity>
             </View>
           )}
