@@ -51,6 +51,21 @@ class ApiService {
     }
   }
 
+  // ==================== AI PROOFREADING ====================
+
+  /**
+   * Spelling and grammar fixes for one section of a note, done by the API.
+   * The app used to send note text straight to Google Gemini with a key built
+   * into the app (penetration test F-03); now the text goes only to our own
+   * server, under the signed-in user's session.
+   */
+  async proofread(text, section) {
+    return this.request('/transcription/proofread', {
+      method: 'POST',
+      body: JSON.stringify({ text, section }),
+    });
+  }
+
   // ==================== AUTH ENDPOINTS ====================
 
   async login(email, password) {

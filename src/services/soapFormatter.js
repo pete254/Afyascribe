@@ -1,44 +1,13 @@
-// src/services/soapFormatter.js - Updated with Lab & Imaging sections
-import { chatWithGemini } from './geminiClient';
+// src/services/soapFormatter.js
+// Formats a dictated or typed SOAP section by sending it to the API's
+// proofreader, which fixes spelling, grammar and punctuation without adding,
+// removing or rewording clinical content. The app no longer calls an AI
+// provider itself: no key is shipped in the app, and note text leaves the
+// phone only for our own server.
+import apiService from './apiService';
 
 /**
- * Get ultra-simple section-specific prompt
- */
-function getSectionPrompt(sectionName, rawText) {
-  const nameLower = sectionName.toLowerCase();
-  
-  if (nameLower.includes('symptom')) {
-    return `Rewrite concisely in plain text (no headers, no asterisks):\n${rawText}`;
-  }
-  
-  if (nameLower.includes('physical') || nameLower.includes('examination')) {
-    return `Rewrite concisely in plain text (no headers, no asterisks):\n${rawText}`;
-  }
-  
-  // NEW: Lab Investigations
-  if (nameLower.includes('lab') || nameLower.includes('investigation')) {
-    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
-  }
-  
-  // NEW: Imaging
-  if (nameLower.includes('imaging') || nameLower.includes('radiology')) {
-    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
-  }
-  
-  if (nameLower.includes('diagnosis')) {
-    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
-  }
-  
-  if (nameLower.includes('management') || nameLower.includes('plan')) {
-    return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation(no headers, no asterisks):\n${rawText}`;
-  }
-  
-  // Fallback
-  return `Fix only spelling mistakes, grammar errors, and punctuation in the following text. Do NOT add any new information, suggestions, interpretations, findings, or recommendations. Do NOT rewrite or restructure sentences beyond correcting errors. Return only the corrected text with no preamble, headers, or explanation:\n${rawText}`;
-}
-
-/**
- * Clean up Gemini response - remove headers and markdown formatting
+ * Clean up the proofread text - remove headers and markdown formatting
  */
 function cleanResponse(text, sectionName) {
   if (!text) return '';
@@ -86,42 +55,24 @@ function cleanResponse(text, sectionName) {
 }
 
 /**
- * Format a single SOAP section with AI
+ * Format a single SOAP section
  * @param {string} sectionName - 'Symptoms', 'Physical Examination', 'Lab Investigations', 'Imaging', 'Diagnosis', or 'Management'
  * @param {string} rawText - Raw transcribed or typed text
  * @returns {Promise<string>} Formatted text for that section
  */
 export async function formatSoapSection(sectionName, rawText) {
   if (!rawText?.trim()) {
-    console.log('⚠️ No text to format');
     return '';
   }
 
   try {
-    console.log(`🔄 Formatting ${sectionName}...`);
-    console.log(`📝 Input text length: ${rawText.length} chars`);
-    
-    // Get section-specific prompt
-    const prompt = getSectionPrompt(sectionName, rawText.trim());
-    console.log(`📤 Sending prompt: "${prompt.substring(0, 50)}..."`);
-    
-    const formatted = await chatWithGemini(prompt);
-    
-    if (!formatted || !formatted.trim()) {
-      console.error('❌ Empty response from Gemini');
-      return rawText; // Return original if no response
+    const { corrected } = await apiService.proofread(rawText.trim(), sectionName);
+    if (!corrected || !corrected.trim()) {
+      return rawText; // Keep the original if nothing came back
     }
-    
-    // Clean up the response
-    const cleaned = cleanResponse(formatted, sectionName);
-    
-    console.log(`✅ Formatted ${sectionName} successfully`);
-    console.log(`📥 Response length: ${cleaned.length} chars`);
-    
-    return cleaned;
+    return cleanResponse(corrected, sectionName);
   } catch (error) {
-    console.error(`❌ Error formatting ${sectionName}:`, error);
-    console.error('Error details:', error.message);
+    console.error(`❌ Error formatting ${sectionName}:`, error.message);
     // Return original text if formatting fails
     return rawText;
   }
